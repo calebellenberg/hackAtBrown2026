@@ -1,0 +1,34 @@
+{
+  "name": "hackatbrown2026",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build:extension": "cd extension && tsc",
+    "watch:extension": "cd extension && tsc --watch"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/calebellenberg/hackAtBrown2026.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/calebellenberg/hackAtBrown2026/issues"
+  },
+  "homepage": "https://github.com/calebellenberg/hackAtBrown2026#readme",
+  "description": "",
+  "dependencies": {
+    "@types/cheerio": "^0.22.35",
+    "@types/node": "^25.1.0",
+    "axios": "^1.13.4",
+    "cheerio": "^1.2.0",
+    "puppeteer": "^24.36.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.1.36"
+  }
+}

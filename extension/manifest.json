@@ -2,6 +2,29 @@
   "manifest_version": 3,
   "name": "Amazon Blocker",
   "version": "1.0",
+  "permissions": ["activeTab", "scripting"],
+  "host_permissions": [
+    "*://*.amazon.com/*",
+    "*://*.ebay.com/*",
+    "*://*.walmart.com/*",
+    "*://*.target.com/*",
+    "*://*.bestbuy.com/*",
+    "*://*.etsy.com/*",
+    "*://*.aliexpress.com/*",
+    "*://*.temu.com/*",
+    "*://*.costco.com/*",
+    "*://*.wayfair.com/*",
+    "*://*.macys.com/*",
+    "*://*.kohls.com/*",
+    "*://*.newegg.com/*",
+    "*://*.zappos.com/*",
+    "*://*.nike.com/*",
+    "*://*.adidas.com/*",
+    "*://*.shein.com/*",
+    "*://*.homedepot.com/*",
+    "*://*.lowes.com/*",
+    "*://*.ikea.com/*"
+  ],
   "action": { "default_popup": "popup.html" },
   "content_scripts": [
     {
@@ -28,7 +51,7 @@
                 "*://*.ikea.com/*"
             ],
       "css": ["styles.css"],
-      "js": ["content.js"]
+      "js": ["dist/content.js"]
     }
   ],
   "web_accessible_resources": [
