@@ -1,3 +1,4 @@
-document.getElementById('click-me').addEventListener('click', () => {
-  alert('Unlike the Chicago Bears, this extension actually works!');
+document.getElementById('setup-btn').addEventListener('click', () => {
+  // Opens the camera page in a new tab
+  chrome.tabs.create({ url: 'camera.html' });
 });

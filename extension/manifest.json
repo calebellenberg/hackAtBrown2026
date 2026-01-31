@@ -2,60 +2,72 @@
   "manifest_version": 3,
   "name": "Amazon Blocker",
   "version": "1.0",
-  "action": { "default_popup": "popup.html" },
+  "icons": {
+    "48": "icon.png",
+    "128": "icon.png"
+  },
+  "action": {
+    "default_popup": "popup.html"
+  },
   "content_scripts": [
     {
       "matches": [
-                "*://*.amazon.com/*",
-                "*://*.ebay.com/*",
-                "*://*.walmart.com/*",
-                "*://*.target.com/*",
-                "*://*.bestbuy.com/*",
-                "*://*.etsy.com/*",
-                "*://*.aliexpress.com/*",
-                "*://*.temu.com/*",
-                "*://*.costco.com/*",
-                "*://*.wayfair.com/*",
-                "*://*.macys.com/*",
-                "*://*.kohls.com/*",
-                "*://*.newegg.com/*",
-                "*://*.zappos.com/*",
-                "*://*.nike.com/*",
-                "*://*.adidas.com/*",
-                "*://*.shein.com/*",
-                "*://*.homedepot.com/*",
-                "*://*.lowes.com/*",
-                "*://*.ikea.com/*"
-            ],
-      "css": ["styles.css"],
-      "js": ["content.js"]
+        "*://*.amazon.com/*",
+        "*://*.ebay.com/*",
+        "*://*.walmart.com/*",
+        "*://*.target.com/*",
+        "*://*.bestbuy.com/*",
+        "*://*.etsy.com/*",
+        "*://*.aliexpress.com/*",
+        "*://*.temu.com/*",
+        "*://*.costco.com/*",
+        "*://*.wayfair.com/*",
+        "*://*.macys.com/*",
+        "*://*.kohls.com/*",
+        "*://*.newegg.com/*",
+        "*://*.zappos.com/*",
+        "*://*.nike.com/*",
+        "*://*.adidas.com/*",
+        "*://*.shein.com/*",
+        "*://*.homedepot.com/*",
+        "*://*.lowes.com/*",
+        "*://*.ikea.com/*"
+      ],
+      "css": [
+        "styles.css"
+      ],
+      "js": [
+        "content.js"
+      ]
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["camera.html"],
+      "resources": [
+        "camera.html"
+      ],
       "matches": [
-                "*://*.amazon.com/*",
-                "*://*.ebay.com/*",
-                "*://*.walmart.com/*",
-                "*://*.target.com/*",
-                "*://*.bestbuy.com/*",
-                "*://*.etsy.com/*",
-                "*://*.aliexpress.com/*",
-                "*://*.temu.com/*",
-                "*://*.costco.com/*",
-                "*://*.wayfair.com/*",
-                "*://*.macys.com/*",
-                "*://*.kohls.com/*",
-                "*://*.newegg.com/*",
-                "*://*.zappos.com/*",
-                "*://*.nike.com/*",
-                "*://*.adidas.com/*",
-                "*://*.shein.com/*",
-                "*://*.homedepot.com/*",
-                "*://*.lowes.com/*",
-                "*://*.ikea.com/*"
-            ]
+        "*://*.amazon.com/*",
+        "*://*.ebay.com/*",
+        "*://*.walmart.com/*",
+        "*://*.target.com/*",
+        "*://*.bestbuy.com/*",
+        "*://*.etsy.com/*",
+        "*://*.aliexpress.com/*",
+        "*://*.temu.com/*",
+        "*://*.costco.com/*",
+        "*://*.wayfair.com/*",
+        "*://*.macys.com/*",
+        "*://*.kohls.com/*",
+        "*://*.newegg.com/*",
+        "*://*.zappos.com/*",
+        "*://*.nike.com/*",
+        "*://*.adidas.com/*",
+        "*://*.shein.com/*",
+        "*://*.homedepot.com/*",
+        "*://*.lowes.com/*",
+        "*://*.ikea.com/*"
+      ]
     }
   ]
 }

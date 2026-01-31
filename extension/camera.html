@@ -1,15 +1,7 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <body style="margin: 0; overflow: hidden; background: black;">
     <video id="cam" autoplay muted style="width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1);"></video>
-    <script>
-        navigator.mediaDevices.getUserMedia({ video: true })
-            .then(stream => {
-                document.getElementById('cam').srcObject = stream;
-            })
-            .catch(err => {
-                console.error("Camera denied:", err);
-            });
-    </script>
+    <script src="camera.js"></script>
 </body>
 </html>
