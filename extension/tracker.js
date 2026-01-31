@@ -382,11 +382,11 @@
                     const now = performance.now();
                     ttcRecorded = (now - pageLoadTime) / 1000;
                     const timeOnSite = (now - pageLoadTime) / 1000;
-                    console.warn(`[Tracker] ⚠️ ADD-TO-CART DETECTED (via content.js)`);
-                    console.warn(`[Tracker] Time-to-Cart (TTC): ${ttcRecorded.toFixed(2)}s`);
-                    console.warn(`[Tracker] Time on Site: ${timeOnSite.toFixed(2)}s`);
-                    console.warn(`[Tracker] Price (raw): ${priceRecorded?.raw || 'N/A'}`);
-                    console.warn(`[Tracker] Price (value): ${priceRecorded?.value ? `$${priceRecorded.value.toFixed(2)}` : 'N/A'}`);
+                    console.log(`[Tracker] ⚠️ ADD-TO-CART DETECTED (via content.js)`);
+                    console.log(`[Tracker] Time-to-Cart (TTC): ${ttcRecorded.toFixed(2)}s`);
+                    console.log(`[Tracker] Time on Site: ${timeOnSite.toFixed(2)}s`);
+                    console.log(`[Tracker] Price (raw): ${priceRecorded?.raw || 'N/A'}`);
+                    console.log(`[Tracker] Price (value): ${priceRecorded?.value ? `$${priceRecorded.value.toFixed(2)}` : 'N/A'}`);
                 }
                 
                 saveStateDebounced();
@@ -419,11 +419,11 @@
                     capturePriceWithPolling(2000, 200).then(priceInfo => {
                         priceRecorded = { raw: priceInfo.raw, value: priceInfo.value };
                         const timeOnSite = (performance.now() - pageLoadTime) / 1000;
-                        console.warn(`[Tracker] ⚠️ ADD-TO-CART DETECTED (backup)`);
-                        console.warn(`[Tracker] Time-to-Cart (TTC): ${ttcRecorded.toFixed(2)}s`);
-                        console.warn(`[Tracker] Time on Site: ${timeOnSite.toFixed(2)}s`);
-                        console.warn(`[Tracker] Price (raw): ${priceRecorded.raw}`);
-                        console.warn(`[Tracker] Price (value): ${priceRecorded.value ? `$${priceRecorded.value.toFixed(2)}` : 'N/A'}`);
+                        console.log(`[Tracker] ⚠️ ADD-TO-CART DETECTED (backup)`);
+                        console.log(`[Tracker] Time-to-Cart (TTC): ${ttcRecorded.toFixed(2)}s`);
+                        console.log(`[Tracker] Time on Site: ${timeOnSite.toFixed(2)}s`);
+                        console.log(`[Tracker] Price (raw): ${priceRecorded.raw}`);
+                        console.log(`[Tracker] Price (value): ${priceRecorded.value ? `$${priceRecorded.value.toFixed(2)}` : 'N/A'}`);
                         saveStateDebounced();
                     }).catch(() => {
                         // Fallback: capture whatever we can now
@@ -453,8 +453,8 @@
                     cartClickDate = new Date().toISOString();
                     capturePriceWithPolling(2000, 200).then(priceInfo => {
                         priceRecorded = { raw: priceInfo.raw, value: priceInfo.value };
-                        console.warn('[Tracker] ⚠️ ADD-TO-CART VIA FORM DETECTED');
-                        console.warn('[Tracker] Time-to-Cart (TTC):', ttcRecorded.toFixed(2) + 's');
+                        console.log('[Tracker] ⚠️ ADD-TO-CART VIA FORM DETECTED');
+                        console.log('[Tracker] Time-to-Cart (TTC):', ttcRecorded.toFixed(2) + 's');
                         saveStateDebounced();
                     }).catch(() => { saveStateDebounced(); });
                 }
