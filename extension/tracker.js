@@ -1,10 +1,82 @@
 /* -------------------- Behavioral Tracking & Logging -------------------- */
 (function behavioralTracking() {
     try {
+        // --- Price Extraction Utilities ---
+        function parsePrice(text) {
+            if (!text) return null;
+            const cleaned = text.replace(/[^0-9.]/g, "");
+            const value = parseFloat(cleaned);
+            return isNaN(value) ? null : value;
+        }
+
+        function getSite() {
+            const host = window.location.hostname || '';
+            if (host.includes('amazon')) return 'amazon';
+            if (document.querySelector('meta[name="generator"][content*="Shopify"]')) return 'shopify';
+            return 'unknown';
+        }
+
+        function getAmazonPrice() {
+            const selectors = [
+                '#priceblock_ourprice',
+                '#priceblock_dealprice',
+                '#priceblock_saleprice',
+                '.a-price .a-offscreen'
+            ];
+            for (const selector of selectors) {
+                const el = document.querySelector(selector);
+                if (el?.textContent) {
+                    const raw = el.textContent.trim();
+                    const value = parsePrice(raw);
+                    return { raw, value };
+                }
+            }
+            return { raw: null, value: null };
+        }
+
+        function getShopifyPrice() {
+            const selectors = [
+                '[data-product-price]',
+                '.product__price',
+                '.price-item--sale',
+                '.price-item--regular'
+            ];
+            for (const selector of selectors) {
+                const el = document.querySelector(selector);
+                if (el?.textContent) {
+                    const raw = el.textContent.trim();
+                    const value = parsePrice(raw);
+                    return { raw, value };
+                }
+            }
+            return { raw: null, value: null };
+        }
+
+        function getGenericPrice() {
+            const elements = Array.from(document.querySelectorAll('span, div'));
+            for (const el of elements) {
+                const text = el.textContent?.trim() || '';
+                if (text.match(/[$€£]\s?\d+/)) {
+                    const value = parsePrice(text);
+                    if (value && value > 0) return { raw: text, value };
+                }
+            }
+            return { raw: null, value: null };
+        }
+
+        function getPagePrice() {
+            const site = getSite();
+            if (site === 'amazon') return getAmazonPrice();
+            if (site === 'shopify') return getShopifyPrice();
+            return getGenericPrice();
+        }
+
         // --- Configuration & State ---
         const pageLoadTime = performance.now();
         const pageLoadTimestamp = Date.now();
         let ttcRecorded = null; // Time-to-Cart (seconds)
+        let priceRecorded = null; // Price info at time of cart click
+        let cartClickDate = null; // Date/time of cart click
         let peakScrollVelocity = 0; // pixels per second
         let clickCount = 0;
         let clickTimestamps = [];
@@ -45,6 +117,8 @@
                 clickTimestamps,
                 navPath,
                 ttcRecorded,
+                priceRecorded,
+                cartClickDate,
                 peakScrollVelocity
             };
         }
@@ -80,6 +154,8 @@
                     navPath = [...oldUnique, ...navPath];
                 }
                 if (typeof obj.ttcRecorded === 'number') ttcRecorded = obj.ttcRecorded;
+                if (obj.priceRecorded) priceRecorded = obj.priceRecorded;
+                if (obj.cartClickDate) cartClickDate = obj.cartClickDate;
                 if (typeof obj.peakScrollVelocity === 'number') peakScrollVelocity = Math.max(peakScrollVelocity, obj.peakScrollVelocity);
             } catch (e) { console.warn('[Tracker] restoreState failed', e); }
         }
@@ -92,6 +168,11 @@
                 console.info('[Tracker] Restored state for', baseDomain);
             }
         } catch (e) { /* ignore */ }
+
+        // Initialization confirmation
+        console.log('[Tracker] Initialized for domain:', baseDomain);
+        console.log('[Tracker] State key:', STATE_KEY);
+        console.log('[Tracker] Page load time:', new Date(pageLoadTimestamp).toISOString());
 
         // --- History Monkey-Patching (Defensive) ---
         // We wrap this carefully to ensure Amazon's router is not disrupted.
@@ -170,14 +251,25 @@
         // Click listener
         document.addEventListener('click', (ev) => {
             clickCount++;
-            clickTimestamps.push(Date.now());
+            const clickTimestamp = Date.now();
+            clickTimestamps.push(clickTimestamp);
             
             // Check for Add to Cart
             const cartEl = findAncestor(ev.target, isAddToCartElement);
             if (cartEl && ttcRecorded === null) {
                 const now = performance.now();
                 ttcRecorded = (now - pageLoadTime) / 1000;
+                
+                // Capture price and date/time
+                const priceInfo = getPagePrice();
+                priceRecorded = { raw: priceInfo.raw, value: priceInfo.value };
+                cartClickDate = new Date().toISOString();
+                
+                console.warn(`[Tracker] ⚠️ ADD-TO-CART DETECTED`);
                 console.warn(`[Tracker] Time-to-Cart (TTC): ${ttcRecorded.toFixed(2)}s`);
+                console.warn(`[Tracker] Price (raw): ${priceRecorded.raw}`);
+                console.warn(`[Tracker] Price (value): ${priceRecorded.value ? `$${priceRecorded.value.toFixed(2)}` : 'N/A'}`);
+                console.warn(`[Tracker] Cart clicked at: ${cartClickDate}`);
             }
 
             // Save on click interaction
@@ -213,10 +305,42 @@
             
             const elapsed = (performance.now() - pageLoadTime) / 1000;
             const clickRate = elapsed > 0 ? (clickCount / elapsed) : 0;
-            // Only log if console is open/active to reduce noise
-            // console.groupCollapsed('[Tracker] Periodic Summary');
-            // ... (logging logic preserved) ...
-            // console.groupEnd();
+            
+            console.group('[Tracker] Periodic Summary');
+            console.log('Timestamp:', new Date().toISOString());
+            console.log('System Start Time:', systemStartTime);
+            console.log('---');
+            console.log('Elapsed Time:', elapsed.toFixed(2), 's');
+            console.log('Click Count:', clickCount);
+            console.log('Click Rate:', clickRate.toFixed(2), 'clicks/sec');
+            console.log('Total Timestamps Recorded:', clickTimestamps.length);
+            console.log('---');
+            
+            if (ttcRecorded) {
+                console.log('Time-to-Cart (TTC):', ttcRecorded.toFixed(2), 's');
+            } else {
+                console.log('Time-to-Cart (TTC): Not yet recorded');
+            }
+            
+            if (priceRecorded) {
+                console.log('Price (Raw):', priceRecorded.raw || 'N/A');
+                console.log('Price (Value):', priceRecorded.value ? `$${priceRecorded.value.toFixed(2)}` : 'N/A');
+            } else {
+                console.log('Price: Not recorded');
+            }
+            
+            if (cartClickDate) {
+                console.log('Cart Click Time:', cartClickDate);
+            } else {
+                console.log('Cart Click Time: Not recorded');
+            }
+            
+            console.log('---');
+            console.log('Peak Scroll Velocity:', peakScrollVelocity.toFixed(2), 'px/s');
+            console.log('Navigation Path Length:', navPath.length);
+            console.log('Current Page:', location.href);
+            console.log('Base Domain:', baseDomain);
+            console.groupEnd();
         }, 10000);
 
         // Final Report
@@ -238,9 +362,26 @@
                 clicks: clickCount,
                 navPath,
                 ttc: ttcRecorded,
+                price: priceRecorded,
+                cartClickDate,
                 peakScrollVelocity
             })
         };
+
+        // --- Message Listener (for popup.js requests) ---
+        try {
+            chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+                if (msg && msg.type === 'GET_PRICE') {
+                    const result = getPagePrice();
+                    sendResponse({ price: result.raw, value: result.value });
+                }
+                if (msg && msg.type === 'GET_TRACKER_SUMMARY') {
+                    sendResponse(window.__shoppingTracker.getSummary());
+                }
+            });
+        } catch (e) {
+            // chrome.runtime may not be available in some contexts
+        }
 
     } catch (err) {
         console.warn('[Tracker] initialization failed', err);
