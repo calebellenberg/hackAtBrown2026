@@ -135,18 +135,30 @@ const DISABLE_KEY_PREFIX = 'stop_shopping.disabled:';
         const _replace = history.replaceState;
         history.pushState = function (state, title, url) {
             const res = _push.apply(this, arguments);
-            navPath.push({ url: new URL(url, location.href).href, ts: Date.now() });
-            console.info('[Tracker] pushState ->', url);
+            try {
+                const resolved = url ? new URL(url, location.href).href : location.href;
+                navPath.push({ url: resolved, ts: Date.now() });
+                console.info('[Tracker] pushState ->', resolved);
+            } catch (err) {
+                try { navPath.push({ url: location.href, ts: Date.now() }); } catch (e) {}
+                console.warn('[Tracker] pushState url parse failed', err);
+            }
             return res;
         };
         history.replaceState = function (state, title, url) {
             const res = _replace.apply(this, arguments);
-            navPath.push({ url: new URL(url, location.href).href, ts: Date.now() });
-            console.info('[Tracker] replaceState ->', url);
+            try {
+                const resolved = url ? new URL(url, location.href).href : location.href;
+                navPath.push({ url: resolved, ts: Date.now() });
+                console.info('[Tracker] replaceState ->', resolved);
+            } catch (err) {
+                try { navPath.push({ url: location.href, ts: Date.now() }); } catch (e) {}
+                console.warn('[Tracker] replaceState url parse failed', err);
+            }
             return res;
         };
         window.addEventListener('popstate', () => {
-            navPath.push({ url: location.href, ts: Date.now() });
+            try { navPath.push({ url: location.href, ts: Date.now() }); } catch (e) {}
             console.info('[Tracker] popstate ->', location.href);
         });
     })();
