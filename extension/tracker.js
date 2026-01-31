@@ -18,19 +18,55 @@
 
         function getAmazonPrice() {
             const selectors = [
+                // Current Amazon selectors (2024+) - these contain full price
+                '.a-price .a-offscreen',
+                '#corePrice_feature_div .a-offscreen',
+                '#corePriceDisplay_desktop_feature_div .a-offscreen',
+                'span.a-price[data-a-color="price"] .a-offscreen',
+                '#apex_offerDisplay_desktop .a-offscreen',
+                '.priceToPay .a-offscreen',
                 '#priceblock_ourprice',
                 '#priceblock_dealprice',
                 '#priceblock_saleprice',
-                '.a-price .a-offscreen'
+                '#tp_price_block_total_price_ww .a-offscreen',
+                '#price_inside_buybox',
+                '#newBuyBoxPrice',
+                '.offer-price'
             ];
             for (const selector of selectors) {
                 const el = document.querySelector(selector);
                 if (el?.textContent) {
                     const raw = el.textContent.trim();
                     const value = parsePrice(raw);
+                    if (value && value > 0) {
+                        return { raw, value };
+                    }
+                }
+            }
+            
+            // Try to combine .a-price-whole and .a-price-fraction
+            const wholeEl = document.querySelector('.a-price-whole');
+            const fractionEl = document.querySelector('.a-price-fraction');
+            if (wholeEl && fractionEl) {
+                const whole = wholeEl.textContent.replace(/[^0-9]/g, '');
+                const fraction = fractionEl.textContent.replace(/[^0-9]/g, '');
+                if (whole && fraction) {
+                    const raw = `$${whole}.${fraction}`;
+                    const value = parseFloat(`${whole}.${fraction}`);
                     return { raw, value };
                 }
             }
+            
+            // Fallback: look for any element with aria-label containing price
+            const ariaPrice = document.querySelector('[aria-label*="$"]');
+            if (ariaPrice) {
+                const ariaLabel = ariaPrice.getAttribute('aria-label');
+                const value = parsePrice(ariaLabel);
+                if (value && value > 0) {
+                    return { raw: ariaLabel, value };
+                }
+            }
+            
             return { raw: null, value: null };
         }
 
@@ -53,12 +89,52 @@
         }
 
         function getGenericPrice() {
-            const elements = Array.from(document.querySelectorAll('span, div'));
+            // First try common price selectors used across many sites
+            const commonSelectors = [
+                '[data-price]',
+                '[data-product-price]',
+                '.price',
+                '.product-price',
+                '.current-price',
+                '.sale-price',
+                '.regular-price',
+                '[itemprop="price"]',
+                '.price__current',
+                '.price-value'
+            ];
+            
+            for (const selector of commonSelectors) {
+                const el = document.querySelector(selector);
+                if (el) {
+                    // Check data-price attribute first
+                    const dataPrice = el.getAttribute('data-price') || el.getAttribute('data-product-price');
+                    if (dataPrice) {
+                        const value = parsePrice(dataPrice);
+                        if (value && value > 0) {
+                            return { raw: `$${value}`, value };
+                        }
+                    }
+                    // Then check text content
+                    const text = el.textContent?.trim() || '';
+                    if (text.match(/[$€£]\s?\d+/)) {
+                        const value = parsePrice(text);
+                        if (value && value > 0) {
+                            return { raw: text, value };
+                        }
+                    }
+                }
+            }
+            
+            // Fallback: scan all span/div elements
+            const elements = Array.from(document.querySelectorAll('span, div, p'));
             for (const el of elements) {
                 const text = el.textContent?.trim() || '';
-                if (text.match(/[$€£]\s?\d+/)) {
+                // Match price patterns like $19.99, €29, £15.00
+                if (text.match(/^[$€£]\s?\d+(\.\d{2})?$/) || text.match(/^\d+(\.\d{2})?\s?[$€£]$/)) {
                     const value = parsePrice(text);
-                    if (value && value > 0) return { raw: text, value };
+                    if (value && value > 0 && value < 100000) {
+                        return { raw: text, value };
+                    }
                 }
             }
             return { raw: null, value: null };
@@ -76,10 +152,10 @@
         const pageLoadTimestamp = Date.now();
         let ttcRecorded = null; // Time-to-Cart (seconds)
         let priceRecorded = null; // Price info at time of cart click
-        let cartClickDate = null; // Date/time of cart click
         let peakScrollVelocity = 0; // pixels per second
         let clickCount = 0;
         let clickTimestamps = [];
+        let cartClickCount = 0; // Total cart clicks this session
         
         // Navigation path: Start with current page
         let navPath = [{ url: location.href, ts: Date.now() }];
@@ -118,8 +194,8 @@
                 navPath,
                 ttcRecorded,
                 priceRecorded,
-                cartClickDate,
-                peakScrollVelocity
+                peakScrollVelocity,
+                cartClickCount
             };
         }
 
@@ -155,8 +231,8 @@
                 }
                 if (typeof obj.ttcRecorded === 'number') ttcRecorded = obj.ttcRecorded;
                 if (obj.priceRecorded) priceRecorded = obj.priceRecorded;
-                if (obj.cartClickDate) cartClickDate = obj.cartClickDate;
                 if (typeof obj.peakScrollVelocity === 'number') peakScrollVelocity = Math.max(peakScrollVelocity, obj.peakScrollVelocity);
+                if (typeof obj.cartClickCount === 'number') cartClickCount = obj.cartClickCount;
             } catch (e) { console.warn('[Tracker] restoreState failed', e); }
         }
 
@@ -279,35 +355,84 @@
             });
         }
 
-        // Click listener
+        // Track when content.js handles a cart click (to avoid double-counting in click listener)
+        let lastCartClickFromContentJs = 0;
+        
+        // Listen for cart click events from content.js (this is the primary source of cart click data)
+        window.addEventListener('stop-shopping-cart-click', (ev) => {
+            try {
+                const detail = ev.detail;
+                console.log('[Tracker] Received cart click event from content.js:', detail);
+                
+                // Mark that content.js handled this click
+                lastCartClickFromContentJs = Date.now();
+                
+                // Always increment cart click count
+                cartClickCount++;
+                console.log('[Tracker] Cart click count updated:', cartClickCount);
+                
+                // Record price if available
+                if (detail && (detail.raw || detail.value)) {
+                    priceRecorded = { raw: detail.raw, value: detail.value };
+                    console.log('[Tracker] Price recorded:', priceRecorded);
+                }
+                
+                // Record time-to-cart if not already recorded
+                if (ttcRecorded === null) {
+                    const now = performance.now();
+                    ttcRecorded = (now - pageLoadTime) / 1000;
+                    const timeOnSite = (now - pageLoadTime) / 1000;
+                    console.warn(`[Tracker] ⚠️ ADD-TO-CART DETECTED (via content.js)`);
+                    console.warn(`[Tracker] Time-to-Cart (TTC): ${ttcRecorded.toFixed(2)}s`);
+                    console.warn(`[Tracker] Time on Site: ${timeOnSite.toFixed(2)}s`);
+                    console.warn(`[Tracker] Price (raw): ${priceRecorded?.raw || 'N/A'}`);
+                    console.warn(`[Tracker] Price (value): ${priceRecorded?.value ? `$${priceRecorded.value.toFixed(2)}` : 'N/A'}`);
+                }
+                
+                saveStateDebounced();
+            } catch (e) { 
+                console.warn('[Tracker] Failed to process cart click event', e); 
+            }
+        });
+
+        // Click listener (backup detection - content.js event is primary)
         document.addEventListener('click', (ev) => {
             clickCount++;
             const clickTimestamp = Date.now();
             clickTimestamps.push(clickTimestamp);
             
-            // Check for Add to Cart
+            // Check for Add to Cart (backup detection if content.js didn't catch it)
             const cartEl = findAncestor(ev.target, isAddToCartElement);
-            if (cartEl && ttcRecorded === null) {
-                const now = performance.now();
-                ttcRecorded = (now - pageLoadTime) / 1000;
-                cartClickDate = new Date().toISOString();
+            
+            // Only process if content.js didn't already handle this click (within 100ms)
+            const recentlyHandledByContentJs = (clickTimestamp - lastCartClickFromContentJs) < 100;
+            
+            if (cartEl && !recentlyHandledByContentJs) {
+                cartClickCount++;
+                console.log('[Tracker] Cart click detected (backup). Total cart clicks:', cartClickCount);
+                
+                if (ttcRecorded === null) {
+                    const now = performance.now();
+                    ttcRecorded = (now - pageLoadTime) / 1000;
 
-                // Capture price immediately and then poll for updates briefly
-                capturePriceWithPolling(2000, 200).then(priceInfo => {
-                    priceRecorded = { raw: priceInfo.raw, value: priceInfo.value };
-                    console.warn(`[Tracker] ⚠️ ADD-TO-CART DETECTED`);
-                    console.warn(`[Tracker] Time-to-Cart (TTC): ${ttcRecorded.toFixed(2)}s`);
-                    console.warn(`[Tracker] Price (raw): ${priceRecorded.raw}`);
-                    console.warn(`[Tracker] Price (value): ${priceRecorded.value ? `$${priceRecorded.value.toFixed(2)}` : 'N/A'}`);
-                    console.warn(`[Tracker] Cart clicked at: ${cartClickDate}`);
-                    saveStateDebounced();
-                }).catch(() => {
-                    // Fallback: capture whatever we can now
-                    const priceInfo = getPagePrice();
-                    priceRecorded = { raw: priceInfo.raw, value: priceInfo.value };
-                    console.warn('[Tracker] Price polling failed, used immediate snapshot');
-                    saveStateDebounced();
-                });
+                    // Capture price immediately and then poll for updates briefly
+                    capturePriceWithPolling(2000, 200).then(priceInfo => {
+                        priceRecorded = { raw: priceInfo.raw, value: priceInfo.value };
+                        const timeOnSite = (performance.now() - pageLoadTime) / 1000;
+                        console.warn(`[Tracker] ⚠️ ADD-TO-CART DETECTED (backup)`);
+                        console.warn(`[Tracker] Time-to-Cart (TTC): ${ttcRecorded.toFixed(2)}s`);
+                        console.warn(`[Tracker] Time on Site: ${timeOnSite.toFixed(2)}s`);
+                        console.warn(`[Tracker] Price (raw): ${priceRecorded.raw}`);
+                        console.warn(`[Tracker] Price (value): ${priceRecorded.value ? `$${priceRecorded.value.toFixed(2)}` : 'N/A'}`);
+                        saveStateDebounced();
+                    }).catch(() => {
+                        // Fallback: capture whatever we can now
+                        const priceInfo = getPagePrice();
+                        priceRecorded = { raw: priceInfo.raw, value: priceInfo.value };
+                        console.warn('[Tracker] Price polling failed, used immediate snapshot');
+                        saveStateDebounced();
+                    });
+                }
             }
 
             // Save on click interaction
@@ -373,6 +498,9 @@
             console.log('Elapsed Time:', elapsed.toFixed(2), 's');
             console.log('Click Count:', clickCount);
             console.log('Click Rate:', clickRate.toFixed(2), 'clicks/sec');
+            console.log('Cart Click Count:', cartClickCount);
+            const cartClickRate = elapsed > 0 ? (cartClickCount / (elapsed / 60)) : 0;
+            console.log('Cart Click Rate:', cartClickRate.toFixed(2), 'cart clicks/min');
             console.log('Total Timestamps Recorded:', clickTimestamps.length);
             console.log('---');
             
@@ -389,11 +517,17 @@
                 console.log('Price: Not recorded');
             }
             
-            if (cartClickDate) {
-                console.log('Cart Click Time:', cartClickDate);
-            } else {
-                console.log('Cart Click Time: Not recorded');
+            // Format time on site nicely
+            function formatTimeOnSite(seconds) {
+                const mins = Math.floor(seconds / 60);
+                const secs = Math.floor(seconds % 60);
+                if (mins === 0) return `${secs}s`;
+                if (mins < 60) return `${mins}m ${secs}s`;
+                const hours = Math.floor(mins / 60);
+                const remainingMins = mins % 60;
+                return `${hours}h ${remainingMins}m ${secs}s`;
             }
+            console.log('Time on Site:', formatTimeOnSite(elapsed));
             
             console.log('---');
             console.log('Peak Scroll Velocity:', peakScrollVelocity.toFixed(2), 'px/s');
@@ -417,15 +551,21 @@
 
         // Expose debug handle
         window.__shoppingTracker = {
-            getSummary: () => ({
-                systemStartTime,
-                clicks: clickCount,
-                navPath,
-                ttc: ttcRecorded,
-                price: priceRecorded,
-                cartClickDate,
-                peakScrollVelocity
-            })
+            getSummary: () => {
+                const elapsed = (performance.now() - pageLoadTime) / 1000;
+                const cartClickRate = elapsed > 0 ? (cartClickCount / (elapsed / 60)) : 0;
+                return {
+                    systemStartTime,
+                    clicks: clickCount,
+                    navPath,
+                    ttc: ttcRecorded,
+                    price: priceRecorded,
+                    timeOnSite: parseFloat(elapsed.toFixed(2)),
+                    peakScrollVelocity,
+                    cartClickCount,
+                    cartClickRate: parseFloat(cartClickRate.toFixed(2))
+                };
+            }
         };
 
         // --- Message Listener (for popup.js requests) ---
