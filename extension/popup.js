@@ -30,7 +30,7 @@ if (getPriceButton && priceDisplay) {
         try {
           await chrome.scripting.executeScript({
             target: { tabId: tabId },
-            files: ['dist/content.js']
+            files: ['content.js']
           });
         } catch (err) {
           const msg = err?.message || (chrome.runtime.lastError && chrome.runtime.lastError.message) || 'unknown error';
