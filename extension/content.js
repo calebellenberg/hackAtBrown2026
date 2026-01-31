@@ -28,6 +28,7 @@ const inputField = overlay.querySelector('#unlock-input');
 inputField.addEventListener('input', (e) => {
     if (e.target.value === goalSentence) {
         overlay.remove();
+        stopBeep();
     }
 });
 
@@ -36,3 +37,79 @@ inputField.addEventListener('paste', (e) => {
     e.preventDefault();
     alert("Don't cheat. Look at yourself and type it.");
 });
+
+// --- Annoying beep using Web Audio API ---
+let audioCtx = null;
+let beepInterval = null;
+
+function prefersReducedMotion() {
+    return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+function playToneOnce(duration = 220, freq = 880) {
+    if (!audioCtx) return;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.value = freq;
+    gain.gain.value = 0.0;
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    const now = audioCtx.currentTime;
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(0.25, now + 0.01);
+    osc.start(now);
+    gain.gain.linearRampToValueAtTime(0, now + duration / 1000);
+    setTimeout(() => {
+        try { osc.stop(); } catch (e) {}
+    }, duration + 20);
+}
+
+function startBeep() {
+    if (prefersReducedMotion()) return;
+    try {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        // Try to play immediately; if context is suspended, resume on first interaction
+        playToneOnce();
+        beepInterval = setInterval(() => playToneOnce(), 1000);
+
+        // If autoplay is blocked (suspended), resume on click anywhere on overlay
+        if (audioCtx.state === 'suspended') {
+            const resume = () => {
+                audioCtx.resume().then(() => {
+                    playToneOnce();
+                    if (beepInterval) clearInterval(beepInterval);
+                    beepInterval = setInterval(() => playToneOnce(), 1000);
+                }).catch(() => {});
+                overlay.removeEventListener('click', resume);
+            };
+            overlay.addEventListener('click', resume, { once: true });
+        }
+    } catch (err) {
+        console.warn('Beep playback failed:', err);
+    }
+}
+
+function stopBeep() {
+    try {
+        if (beepInterval) {
+            clearInterval(beepInterval);
+            beepInterval = null;
+        }
+        if (audioCtx) {
+            audioCtx.close().catch(() => {});
+            audioCtx = null;
+        }
+    } catch (e) {
+        console.warn('Error stopping beep', e);
+    }
+}
+
+// Start the beep when overlay is shown
+startBeep();
+
+// Ensure beep stops if overlay is removed by other means
+new MutationObserver(() => {
+    if (!document.body.contains(overlay)) stopBeep();
+}).observe(document.body, { childList: true, subtree: true });
