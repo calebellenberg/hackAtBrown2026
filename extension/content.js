@@ -195,11 +195,6 @@ const DISABLE_KEY_PREFIX = 'stop_shopping.disabled:';
         button.dataset.intercepted = 'true';
 
         button.addEventListener('click', (e) => {
-            try {
-                // If user disabled overlay for this base domain in this session, allow default behavior
-                if (sessionStorage.getItem(disableKey) === '1') return;
-            } catch (err) {}
-
             console.log('Add to Cart clicked - intercepting');
             const result = getPagePrice();
             const priceDisplay = result.raw || (result.value ? `$${result.value}` : 'Price not found');
@@ -208,11 +203,9 @@ const DISABLE_KEY_PREFIX = 'stop_shopping.disabled:';
                 title: 'DO NOT GAMBLE',
                 message: 'Gambling can be addictive — pause and think before you wager.',
                 challenge: 'I understand that I am about to gamble and I will make a rational decision',
-                price: priceDisplay,
-                onUnlock: () => { try { sessionStorage.setItem(disableKey, '1'); } catch (e) {} }
+                price: priceDisplay
             } : {
-                price: priceDisplay,
-                onUnlock: () => { try { sessionStorage.setItem(disableKey, '1'); } catch (e) {} }
+                price: priceDisplay
             };
 
             createOverlay(overlayOpts);

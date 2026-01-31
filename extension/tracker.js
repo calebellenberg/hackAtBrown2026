@@ -248,6 +248,37 @@
             return false;
         }
 
+        // Capture price with short polling window to catch dynamic updates
+        function capturePriceWithPolling(timeoutMs = 2000, intervalMs = 200) {
+            return new Promise((resolve) => {
+                const start = Date.now();
+                let lastSeen = getPagePrice();
+
+                // If we already have a value, resolve quickly but still allow a later update
+                if (lastSeen && lastSeen.value) {
+                    // Still poll briefly to catch immediate updates
+                }
+
+                const iv = setInterval(() => {
+                    const now = Date.now();
+                    const candidate = getPagePrice();
+                    // Prefer non-null numeric values
+                    if (candidate && candidate.value) {
+                        lastSeen = candidate;
+                    }
+                    if (now - start >= timeoutMs) {
+                        clearInterval(iv);
+                        resolve(lastSeen || { raw: null, value: null });
+                    }
+                }, intervalMs);
+
+                // Also resolve after timeout even if interval didn't run (safety)
+                setTimeout(() => {
+                    // noop here, actual resolution happens in interval clear
+                }, timeoutMs + 50);
+            });
+        }
+
         // Click listener
         document.addEventListener('click', (ev) => {
             clickCount++;
@@ -259,22 +290,51 @@
             if (cartEl && ttcRecorded === null) {
                 const now = performance.now();
                 ttcRecorded = (now - pageLoadTime) / 1000;
-                
-                // Capture price and date/time
-                const priceInfo = getPagePrice();
-                priceRecorded = { raw: priceInfo.raw, value: priceInfo.value };
                 cartClickDate = new Date().toISOString();
-                
-                console.warn(`[Tracker] ⚠️ ADD-TO-CART DETECTED`);
-                console.warn(`[Tracker] Time-to-Cart (TTC): ${ttcRecorded.toFixed(2)}s`);
-                console.warn(`[Tracker] Price (raw): ${priceRecorded.raw}`);
-                console.warn(`[Tracker] Price (value): ${priceRecorded.value ? `$${priceRecorded.value.toFixed(2)}` : 'N/A'}`);
-                console.warn(`[Tracker] Cart clicked at: ${cartClickDate}`);
+
+                // Capture price immediately and then poll for updates briefly
+                capturePriceWithPolling(2000, 200).then(priceInfo => {
+                    priceRecorded = { raw: priceInfo.raw, value: priceInfo.value };
+                    console.warn(`[Tracker] ⚠️ ADD-TO-CART DETECTED`);
+                    console.warn(`[Tracker] Time-to-Cart (TTC): ${ttcRecorded.toFixed(2)}s`);
+                    console.warn(`[Tracker] Price (raw): ${priceRecorded.raw}`);
+                    console.warn(`[Tracker] Price (value): ${priceRecorded.value ? `$${priceRecorded.value.toFixed(2)}` : 'N/A'}`);
+                    console.warn(`[Tracker] Cart clicked at: ${cartClickDate}`);
+                    saveStateDebounced();
+                }).catch(() => {
+                    // Fallback: capture whatever we can now
+                    const priceInfo = getPagePrice();
+                    priceRecorded = { raw: priceInfo.raw, value: priceInfo.value };
+                    console.warn('[Tracker] Price polling failed, used immediate snapshot');
+                    saveStateDebounced();
+                });
             }
 
             // Save on click interaction
             saveStateDebounced();
         }, { capture: true, passive: true });
+
+        // Submit listener: capture add-to-cart triggered by forms
+        document.addEventListener('submit', (ev) => {
+            try {
+                const form = ev.target;
+                // Find submit button used (if any)
+                const submitBtn = form.querySelector('button[type="submit"], input[type="submit"]');
+                const candidate = submitBtn || form;
+                const isCart = candidate && isAddToCartElement(candidate);
+                if (isCart && ttcRecorded === null) {
+                    const now = performance.now();
+                    ttcRecorded = (now - pageLoadTime) / 1000;
+                    cartClickDate = new Date().toISOString();
+                    capturePriceWithPolling(2000, 200).then(priceInfo => {
+                        priceRecorded = { raw: priceInfo.raw, value: priceInfo.value };
+                        console.warn('[Tracker] ⚠️ ADD-TO-CART VIA FORM DETECTED');
+                        console.warn('[Tracker] Time-to-Cart (TTC):', ttcRecorded.toFixed(2) + 's');
+                        saveStateDebounced();
+                    }).catch(() => { saveStateDebounced(); });
+                }
+            } catch (e) { /* ignore form inspection errors */ }
+        }, { capture: true });
 
         // Scroll listener
         window.addEventListener('scroll', () => {
