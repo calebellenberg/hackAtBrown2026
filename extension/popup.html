@@ -2,20 +2,25 @@
 <html lang="en">
   <head>
     <style>
-      body { width: 250px; text-align: center; font-family: sans-serif; padding: 10px; }
-      button {
-        background-color: #4CAF50; color: white; padding: 10px 20px;
-        border: none; cursor: pointer; margin-top: 10px; width: 100%;
+      body {
+        width: 200px;
+        text-align: center;
+        font-family: sans-serif;
       }
-      #setup-btn { background-color: #2196F3; } /* Blue button */
+      button {
+        background-color: #4CAF50;
+        color: white;
+        padding: 10px 20px;
+        border: none;
+        cursor: pointer;
+      }
     </style>
   </head>
   <body>
-    <h3>Amazon Blocker</h3>
-    <p>Blocker is active.</p>
-    
-    <button id="setup-btn">Grant Camera Permission</button>
-    
-    <script src="popup.js"></script>
+    <h3>Price Checker</h3>
+    <p>Click to read the page price (if present).</p>
+    <button id="get-price">Get Price</button>
+    <div id="price" style="margin-top:10px;font-weight:bold">—</div>
+    <script src="dist/popup.js"></script>
   </body>
 </html>
