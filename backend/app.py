@@ -6,7 +6,8 @@ Provides endpoints for purchase analysis and memory synchronization.
 
 import os
 import json
-from typing import Optional, List, Any
+import shutil
+from typing import Optional, List, Any, Dict
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -71,19 +72,31 @@ if VERTEX_SERVICE_ACCOUNT_PATH and os.path.exists(VERTEX_SERVICE_ACCOUNT_PATH):
         print(f"Warning: Could not initialize memory engine: {e}")
 
 # Default baseline for users without calibration (used by Fast Brain)
+# These values are calibrated for realistic behavioral patterns from browser extension
 DEFAULT_BASELINE = {
+    # Biometrics (placeholder values - kept at typical resting levels)
     "heart_rate": {"mean": 72.0, "std": 10.0},
     "respiration_rate": {"mean": 16.0, "std": 3.0},
-    "scroll_velocity": {"mean": 50.0, "std": 20.0},
-    "click_rate": {"mean": 2.0, "std": 1.0},
+    
+    # Behavioral telemetry (calibrated from real browsing patterns)
+    # scroll_velocity: typical range 50-500 px/s, peaks can reach 1000+ during rapid scrolling
+    "scroll_velocity": {"mean": 200.0, "std": 150.0},
+    
+    # click_rate: clicks per second, typical browsing is 0.05-0.2 clicks/sec
+    # 0.1 clicks/sec = 6 clicks per minute (normal browsing)
+    # 0.3+ clicks/sec = rapid clicking (potentially impulsive)
+    "click_rate": {"mean": 0.1, "std": 0.1},
+    
+    # time_on_site: seconds, typical shopping session 2-5 minutes
     "time_on_site": {"mean": 180.0, "std": 60.0}
 }
 
 # Placeholder biometrics (to be replaced with Presage SDK integration)
+# These produce neutral signals in behavior-only mode (minimal weight)
 DEFAULT_BIOMETRICS = {
-    "heart_rate": 75.0,
-    "respiration_rate": 16.0,
-    "emotion_arousal": 0.5
+    "heart_rate": 72.0,        # Match baseline mean for neutral Z-score
+    "respiration_rate": 16.0,  # Match baseline mean for neutral Z-score
+    "emotion_arousal": 0.5     # Neutral arousal level
 }
 
 # Initialize Fast Brain inference engine
@@ -143,6 +156,29 @@ class PipelineResponse(BaseModel):
     reasoning: str = Field(..., description="Explanation citing specific goals/budget")
     intervention_action: str = Field(..., description="COOLDOWN, MIRROR, PHRASE, or NONE")
     memory_update: Optional[str] = Field(None, description="Memory update if patterns detected")
+
+
+class UpdatePreferencesRequest(BaseModel):
+    """Request model for /update-preferences endpoint."""
+    budget: float = Field(..., ge=0, description="Monthly spending budget in dollars")
+    threshold: float = Field(default=0, ge=0, description="Large purchase threshold in dollars")
+    sensitivity: str = Field(default="medium", description="Spending sensitivity: low, medium, or high")
+    financial_goals: Optional[str] = Field(default=None, description="User's financial goals and purchase preferences")
+
+
+class UpdatePreferencesResponse(BaseModel):
+    """Response model for /update-preferences endpoint."""
+    status: str = Field(..., description="Status of the operation")
+    budget_updated: bool = Field(..., description="Whether Budget.md was updated")
+    goals_updated: bool = Field(default=False, description="Whether memory files were updated with financial goals")
+    message: str = Field(..., description="Details about the update")
+
+
+class ResetMemoryResponse(BaseModel):
+    """Response model for /reset-memory endpoint."""
+    status: str = Field(..., description="Status of the operation")
+    files_reset: int = Field(..., ge=0, description="Number of files reset")
+    message: str = Field(..., description="Details about the reset")
 
 
 @app.on_event("startup")
@@ -281,6 +317,460 @@ async def sync_memory() -> SyncMemoryResponse:
         )
 
 
+# ===================== UPDATE PREFERENCES ENDPOINT =====================
+
+async def process_financial_goals_with_gemini(financial_goals_text: str, memory_engine: MemoryEngine) -> Dict[str, Any]:
+    """
+    Process financial goals text using Gemini API to format it appropriately for memory files.
+    
+    Args:
+        financial_goals_text: User's financial goals and purchase preferences text
+        memory_engine: MemoryEngine instance for calling Gemini API
+        
+    Returns:
+        Dictionary with file updates: {"Goals.md": "...", "Budget.md": "...", etc.}
+    """
+    system_prompt = """You are a financial assistant that helps format user financial goals and purchase preferences 
+for an AI decision-making system. Your task is to analyze the user's input and format it appropriately for memory files 
+that will be used by an AI to make better purchase decisions.
+
+The system has 4 memory files:
+1. **Goals.md**: Long-term financial goals, savings targets, personal aspirations, future plans
+2. **Budget.md**: Monthly spending limits, budget constraints, category-specific budgets, spending thresholds
+3. **Behavior.md**: Purchase preferences, spending patterns, triggers to avoid, behavioral preferences
+4. **State.md**: Current financial state information (account balances, income, current savings)
+
+Your job is to:
+- Parse the user's financial goals text
+- Extract relevant information for each memory file type
+- Format updates as markdown that preserves context for future AI decisions
+- Make content easily retrievable via RAG queries by being specific and clear
+- Preserve information in a way that helps the AI later make better decisions by referencing specific goals, budgets, and preferences
+
+IMPORTANT FORMATTING GUIDELINES:
+- Use clear, specific language that the AI can reference later
+- Include specific dollar amounts, timeframes, and categories when mentioned
+- Format as markdown sections that fit into existing file structures
+- For Goals.md: Use bullet points or checkboxes for goals
+- For Budget.md: Include specific limits and thresholds
+- For Behavior.md: Describe preferences and patterns clearly
+- For State.md: Only include if current financial state is mentioned
+
+Return a JSON object with keys for each file that needs updating. Only include files that have relevant content.
+Example format:
+{
+  "Goals.md": "## Financial Goals\\n- Save $5000 for vacation by June 2026\\n- Build emergency fund of $10000",
+  "Budget.md": "## Category Budgets\\n- Electronics: $200/month",
+  "Behavior.md": "## Purchase Preferences\\n- Prefer quality over quantity for clothing\\n- Avoid impulse electronics purchases"
+}
+
+If a file doesn't need updating, omit it from the response. Return only valid JSON."""
+
+    user_prompt = f"""Analyze the following user financial goals and purchase preferences, then format them appropriately 
+for the memory files:
+
+{financial_goals_text}
+
+Format this information for the appropriate memory files. Be specific and clear so the AI can reference this information 
+when making purchase decisions later."""
+
+    try:
+        result = await memory_engine._call_gemini_api(user_prompt, system_instruction=system_prompt)
+        return result
+    except Exception as e:
+        print(f"[Preferences] Error calling Gemini API for financial goals: {e}")
+        raise
+
+
+async def update_memory_file_with_content(file_name: str, new_content: str, memory_dir: str) -> bool:
+    """
+    Update a memory file by merging new content with existing content.
+    
+    Args:
+        file_name: Name of the memory file (e.g., "Goals.md")
+        new_content: New content to add (formatted markdown)
+        memory_dir: Directory containing memory files
+        
+    Returns:
+        True if successful, False otherwise
+    """
+    from datetime import datetime
+    
+    try:
+        file_path = os.path.join(memory_dir, file_name)
+        
+        if not os.path.exists(file_path):
+            print(f"[Preferences] Warning: {file_name} not found, skipping update")
+            return False
+        
+        # Read existing content
+        with open(file_path, 'r', encoding='utf-8') as f:
+            existing_content = f.read()
+        
+        # Find where to insert new content
+        # Try to find appropriate sections, otherwise append
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        # For Goals.md, look for "Financial Goals" section
+        if file_name == "Goals.md":
+            if "## Financial Goals" in existing_content:
+                # Insert after Financial Goals section
+                section_marker = "## Financial Goals"
+                if new_content.strip():
+                    # Add new content after the section header
+                    lines = existing_content.split('\n')
+                    insert_index = None
+                    for i, line in enumerate(lines):
+                        if line.strip() == section_marker:
+                            insert_index = i + 1
+                            break
+                    
+                    if insert_index:
+                        # Find the next section or end of file
+                        next_section = None
+                        for i in range(insert_index, len(lines)):
+                            if lines[i].startswith('##') and lines[i] != section_marker:
+                                next_section = i
+                                break
+                        
+                        if next_section:
+                            lines.insert(next_section, f"\n{new_content}\n")
+                        else:
+                            lines.append(f"\n{new_content}\n")
+                        existing_content = '\n'.join(lines)
+                    else:
+                        existing_content += f"\n\n{new_content}\n"
+            else:
+                # Add Financial Goals section
+                existing_content += f"\n\n## Financial Goals\n{new_content}\n"
+        
+        # For Budget.md, look for appropriate section
+        elif file_name == "Budget.md":
+            if "## Category Budgets" in existing_content or "## Spending Limits" in existing_content:
+                # Append to existing section
+                existing_content += f"\n{new_content}\n"
+            else:
+                # Add new section before "Last Updated"
+                if "## Last Updated" in existing_content:
+                    existing_content = existing_content.replace(
+                        "## Last Updated",
+                        f"{new_content}\n\n## Last Updated"
+                    )
+                else:
+                    existing_content += f"\n\n{new_content}\n"
+        
+        # For Behavior.md, look for "Purchase Preferences" or "Observed Behaviors"
+        elif file_name == "Behavior.md":
+            if "## Purchase Preferences" in existing_content:
+                existing_content += f"\n{new_content}\n"
+            elif "## Observed Behaviors" in existing_content:
+                # Add Purchase Preferences section after Observed Behaviors
+                existing_content = existing_content.replace(
+                    "## Observed Behaviors",
+                    f"## Observed Behaviors\n\n## Purchase Preferences\n{new_content}"
+                )
+            else:
+                existing_content += f"\n\n## Purchase Preferences\n{new_content}\n"
+        
+        # For State.md, update relevant sections
+        elif file_name == "State.md":
+            if "## Wealth Status" in existing_content:
+                existing_content += f"\n{new_content}\n"
+            else:
+                existing_content += f"\n\n{new_content}\n"
+        
+        # Update Last Updated timestamp
+        import re
+        if "## Last Updated" in existing_content:
+            existing_content = re.sub(
+                r'## Last Updated\n- .*',
+                f"## Last Updated\n- {timestamp}",
+                existing_content
+            )
+        else:
+            existing_content += f"\n\n## Last Updated\n- {timestamp}\n"
+        
+        # Write updated content
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write(existing_content)
+        
+        print(f"[Preferences] Updated {file_name} with financial goals content")
+        return True
+        
+    except Exception as e:
+        print(f"[Preferences] Error updating {file_name}: {e}")
+        return False
+
+
+@app.post("/update-preferences", response_model=UpdatePreferencesResponse)
+async def update_preferences(request: UpdatePreferencesRequest) -> UpdatePreferencesResponse:
+    """
+    Update user preferences in memory files.
+    
+    This endpoint is called by the browser extension when the user saves
+    their preferences. It updates Budget.md with the new budget limits.
+    
+    Args:
+        request: Preferences data (budget, threshold, sensitivity)
+        
+    Returns:
+        Status of the update operation
+    """
+    from datetime import datetime
+    
+    try:
+        budget_file = os.path.join(MEMORY_DIR, "Budget.md")
+        
+        if not os.path.exists(budget_file):
+            return UpdatePreferencesResponse(
+                status="error",
+                budget_updated=False,
+                message="Budget.md not found"
+            )
+        
+        # Generate updated Budget.md content
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        # Calculate remaining based on budget
+        remaining = request.budget
+        
+        # Sensitivity affects the intervention thresholds
+        sensitivity_note = {
+            'low': 'Gentle reminders only',
+            'medium': 'Balanced intervention',
+            'high': 'Strict warnings enabled'
+        }.get(request.sensitivity, 'Balanced intervention')
+        
+        new_content = f"""# Budget Constraints
+
+## Monthly Spending Limits
+- Discretionary: ${request.budget:.0f}/month
+- Large Purchase Threshold: ${request.threshold:.0f}
+
+## Current Month
+- Spent: $0
+- Remaining: ${remaining:.0f}
+
+## User Settings
+- Sensitivity: {request.sensitivity} ({sensitivity_note})
+
+## Last Updated
+- {timestamp}
+"""
+        
+        # Write the updated content
+        with open(budget_file, 'w', encoding='utf-8') as f:
+            f.write(new_content)
+        
+        print(f"[Preferences] Updated Budget.md: budget=${request.budget}, threshold=${request.threshold}, sensitivity={request.sensitivity}")
+        
+        # Process financial goals if provided
+        goals_updated = False
+        if request.financial_goals and request.financial_goals.strip() and memory_engine:
+            try:
+                print(f"[Preferences] Processing financial goals with Gemini...")
+                # Call Gemini to format the financial goals
+                file_updates = await process_financial_goals_with_gemini(
+                    request.financial_goals.strip(),
+                    memory_engine
+                )
+                
+                # Update each memory file that Gemini identified
+                files_updated = []
+                for file_name, content in file_updates.items():
+                    if file_name.endswith('.md') and content and content.strip():
+                        if await update_memory_file_with_content(file_name, content.strip(), MEMORY_DIR):
+                            files_updated.append(file_name)
+                            goals_updated = True
+                
+                if files_updated:
+                    print(f"[Preferences] Updated memory files: {', '.join(files_updated)}")
+                else:
+                    print(f"[Preferences] No memory files were updated (Gemini may not have found relevant content)")
+                    
+            except Exception as e:
+                print(f"[Preferences] Error processing financial goals: {e}")
+                # Don't fail the entire request if financial goals processing fails
+                # Budget update still succeeded
+        
+        # Reindex ChromaDB to pick up changes (both budget and goals)
+        if memory_engine:
+            await memory_engine.reindex_memory()
+            print("[Preferences] Reindexed memory after preferences update")
+        
+        message = f"Budget set to ${request.budget}/month with ${request.threshold} large purchase threshold"
+        if goals_updated:
+            message += ". Financial goals updated in memory files."
+        
+        return UpdatePreferencesResponse(
+            status="success",
+            budget_updated=True,
+            goals_updated=goals_updated,
+            message=message
+        )
+        
+    except Exception as e:
+        print(f"[Preferences] Error updating preferences: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error updating preferences: {str(e)}"
+        )
+
+
+# ===================== RESET MEMORY ENDPOINT =====================
+
+# Template content for memory files
+MEMORY_TEMPLATES = {
+    "Budget.md": """# Budget Constraints
+
+## Monthly Spending Limits
+- Discretionary: $500/month
+
+## Current Month
+- Spent: $0
+- Remaining: $500
+
+## Last Updated
+- {timestamp}
+""",
+    "Goals.md": """# Long-term Goals
+
+## Financial Goals
+- [ ] Set your savings goals here
+
+## Personal Goals
+- [ ] Reduce impulse purchases
+- [ ] Build better spending habits
+
+## Last Updated
+- {timestamp}
+""",
+    "Behavior.md": """# Spending Patterns
+
+## Observed Behaviors
+- [No patterns recorded yet]
+
+## High-Risk Triggers
+- Late night shopping (after 11 PM)
+- Flash sale websites
+
+## Positive Patterns
+- [None recorded yet]
+
+## Last Updated
+- {timestamp}
+""",
+    "State.md": """# Current Financial State
+
+## Wealth Status
+- Savings Account: $[AMOUNT]
+- Checking Account: $[AMOUNT]
+- Monthly Income: $[AMOUNT]
+
+## Recent Changes
+- [No recent changes]
+
+## Last Updated
+- {timestamp}
+"""
+}
+
+
+@app.post("/reset-memory", response_model=ResetMemoryResponse)
+async def reset_memory() -> ResetMemoryResponse:
+    """
+    Reset all memory files to their template state.
+    
+    This endpoint erases all user data and preferences, returning
+    the memory files to their initial template state.
+    
+    WARNING: This action cannot be undone!
+    
+    Returns:
+        Status of the reset operation
+    """
+    from datetime import datetime
+    
+    try:
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        files_reset = 0
+        
+        # Ensure memory directory exists
+        os.makedirs(MEMORY_DIR, exist_ok=True)
+        
+        # Step 1: Reset all .md files to template state
+        for filename, template in MEMORY_TEMPLATES.items():
+            file_path = os.path.join(MEMORY_DIR, filename)
+            
+            # Replace {timestamp} placeholder
+            content = template.format(timestamp=timestamp)
+            
+            # Write template content (creates file if it doesn't exist)
+            try:
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    f.write(content)
+                
+                # Verify file was written
+                if os.path.exists(file_path):
+                    files_reset += 1
+                    print(f"[Reset] ✓ Reset {filename} to template state")
+                else:
+                    print(f"[Reset] ✗ ERROR: {filename} was not created!")
+            except Exception as e:
+                print(f"[Reset] ✗ ERROR writing {filename}: {e}")
+                raise
+        
+        # Step 2: Clear ChromaDB persistent storage
+        # Delete chroma.sqlite3 and all UUID-named directories
+        chroma_db_file = os.path.join(MEMORY_DIR, "chroma.sqlite3")
+        if os.path.exists(chroma_db_file):
+            try:
+                os.remove(chroma_db_file)
+                print("[Reset] ✓ Deleted chroma.sqlite3")
+            except Exception as e:
+                print(f"[Reset] ⚠ Warning: Could not delete chroma.sqlite3: {e}")
+        
+        # Delete all UUID-named directories (ChromaDB collection data)
+        uuid_dirs_deleted = 0
+        for item in os.listdir(MEMORY_DIR):
+            item_path = os.path.join(MEMORY_DIR, item)
+            # Check if it's a UUID-named directory (format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
+            if os.path.isdir(item_path) and len(item) == 36 and item.count('-') == 4:
+                try:
+                    shutil.rmtree(item_path)
+                    uuid_dirs_deleted += 1
+                    print(f"[Reset] ✓ Deleted ChromaDB collection directory: {item}")
+                except Exception as e:
+                    print(f"[Reset] ⚠ Warning: Could not delete {item}: {e}")
+        
+        print(f"[Reset] Cleared {uuid_dirs_deleted} ChromaDB collection directories")
+        
+        # Step 3: Reindex ChromaDB with fresh templates
+        # Note: reindex_memory() deletes the existing collection and creates a new one,
+        # effectively clearing all old data from ChromaDB before indexing the reset .md files
+        if memory_engine:
+            # Explicitly clear ChromaDB by deleting and recreating the collection
+            # This ensures all old chunks, embeddings, and metadata are removed
+            print("[Reset] Reindexing ChromaDB with fresh templates...")
+            await memory_engine.reindex_memory()
+            print(f"[Reset] ✓ ChromaDB cleared and reindexed with {files_reset} fresh template files")
+        
+        return ResetMemoryResponse(
+            status="success",
+            files_reset=files_reset,
+            message=f"Reset {files_reset} memory files to template state and cleared ChromaDB persistent storage"
+        )
+        
+    except Exception as e:
+        print(f"[Reset] Error resetting memory: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error resetting memory: {str(e)}"
+        )
+
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
@@ -315,6 +805,9 @@ async def pipeline_analyze(request: PipelineRequest) -> PipelineResponse:
     try:
         # Step 1: Prepare Fast Brain input data
         # Combine placeholder biometrics with real telemetry
+        click_rate_calculated = request.click_count / max(request.time_on_site, 1)
+        time_to_cart_value = request.time_to_cart if request.time_to_cart else request.time_on_site
+        
         current_data = {
             # Biometrics (placeholder - to be replaced with Presage SDK)
             "heart_rate": DEFAULT_BIOMETRICS["heart_rate"],
@@ -322,9 +815,9 @@ async def pipeline_analyze(request: PipelineRequest) -> PipelineResponse:
             "emotion_arousal": DEFAULT_BIOMETRICS["emotion_arousal"],
             
             # Real telemetry from browser extension
-            "click_rate": request.click_count / max(request.time_on_site, 1),  # clicks per second
+            "click_rate": click_rate_calculated,  # clicks per second
             "time_on_site": request.time_on_site,
-            "time_to_cart": request.time_to_cart if request.time_to_cart else request.time_on_site,
+            "time_to_cart": time_to_cart_value,
             "scroll_velocity_peak": request.peak_scroll_velocity,
             "system_hour": request.system_hour,
             
@@ -332,15 +825,46 @@ async def pipeline_analyze(request: PipelineRequest) -> PipelineResponse:
             "website_name": request.website
         }
         
+        # ============ DETAILED TELEMETRY LOGGING ============
+        print(f"\n{'='*60}")
+        print(f"[Pipeline] INCOMING TELEMETRY from extension:")
+        print(f"  Product: {request.product}")
+        print(f"  Cost: ${request.cost:.2f}")
+        print(f"  Website: {request.website}")
+        print(f"  ---")
+        print(f"  time_to_cart: {time_to_cart_value:.1f}s (raw: {request.time_to_cart})")
+        print(f"  time_on_site: {request.time_on_site:.1f}s")
+        print(f"  click_count: {request.click_count}")
+        print(f"  click_rate: {click_rate_calculated:.4f} clicks/sec")
+        print(f"  peak_scroll_velocity: {request.peak_scroll_velocity:.1f} px/s")
+        print(f"  system_hour: {request.system_hour}:00")
+        print(f"  ---")
+        print(f"  Using weight profile: {'BEHAVIOR_ONLY' if ImpulseInferenceEngine.USE_PLACEHOLDER_BIOMETRICS else 'FULL_BIOMETRIC'}")
+        print(f"  Active weights: {fast_brain.WEIGHTS}")
+        print(f"{'='*60}")
+        # ====================================================
+        
         # Step 2: Run Fast Brain inference
         p_impulse_fast = fast_brain.calculate_p_impulse(current_data)
         fast_intervention = fast_brain.get_intervention_level(p_impulse_fast)
         
-        # Get structured output for dominant trigger
+        # Get structured output for dominant trigger and detailed logging
         structured_output = fast_brain.get_structured_output(current_data)
         dominant_trigger = structured_output.get("dominant_trigger", "unknown")
+        logic_summary = structured_output.get("logic_summary", {})
         
-        print(f"[Pipeline] Fast Brain: p_impulse={p_impulse_fast:.3f}, intervention={fast_intervention}, trigger={dominant_trigger}")
+        # ============ FAST BRAIN DETAILED OUTPUT ============
+        print(f"\n[Pipeline] FAST BRAIN ANALYSIS:")
+        print(f"  p_impulse: {p_impulse_fast:.3f}")
+        print(f"  intervention_level: {fast_intervention}")
+        print(f"  dominant_trigger: {dominant_trigger}")
+        if logic_summary:
+            print(f"  ---")
+            print(f"  Z-scores: {logic_summary.get('z_scores', {})}")
+            print(f"  Likelihoods: {logic_summary.get('likelihoods', {})}")
+            print(f"  Weighted contributions: {logic_summary.get('weighted_contributions', {})}")
+            print(f"  Context factors: {logic_summary.get('context_factors', {})}")
+        print(f"{'='*60}\n")
         
         # Step 3: Run Slow Brain analysis
         if memory_engine:
@@ -348,7 +872,14 @@ async def pipeline_analyze(request: PipelineRequest) -> PipelineResponse:
                 purchase_dict = {
                     "product": request.product,
                     "cost": request.cost,
-                    "website": request.website
+                    "website": request.website,
+                    "system_hour": request.system_hour,  # Time of day for late-night detection
+                    # Include telemetry data for behavioral pattern learning
+                    "time_to_cart": time_to_cart_value,
+                    "time_on_site": request.time_on_site,
+                    "click_rate": click_rate_calculated,
+                    "peak_scroll_velocity": request.peak_scroll_velocity,
+                    "click_count": request.click_count
                 }
                 
                 slow_brain_result = await memory_engine.analyze_purchase(

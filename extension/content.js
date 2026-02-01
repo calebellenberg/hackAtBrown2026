@@ -608,14 +608,18 @@ function createPhraseOverlay(opts = {}) {
 // Show the appropriate intervention based on the analysis result
 function showInterventionOverlay(interventionAction, opts = {}) {
     console.log('[content.js] 🎯 showInterventionOverlay called');
-    console.log('[content.js] Intervention action:', interventionAction);
+    console.log('[content.js] Intervention action (raw):', interventionAction);
+    
+    // NORMALIZE the action to uppercase and trim whitespace
+    const action = (interventionAction || '').toString().trim().toUpperCase();
+    console.log('[content.js] Intervention action (normalized):', action);
     console.log('[content.js] Options:', JSON.stringify(opts, null, 2));
     
     try {
-        switch (interventionAction) {
+        switch (action) {
             case 'NONE':
                 // No intervention needed - allow purchase
-                console.log('[content.js] ✅ No intervention needed');
+                console.log('[content.js] ✅ No intervention needed (NONE)');
                 return false;
                 
             case 'MIRROR':
@@ -633,15 +637,18 @@ function showInterventionOverlay(interventionAction, opts = {}) {
                 createPhraseOverlay(opts);
                 return true;
                 
+            case '':
+                // Empty action = no intervention
+                console.log('[content.js] ✅ Empty action, treating as NONE');
+                return false;
+                
             default:
-                // Default to MIRROR for unknown intervention types
-                console.log('[content.js] ❓ Unknown intervention type "' + interventionAction + '", defaulting to MIRROR');
-                createMirrorOverlay(opts);
-                return true;
+                // Unknown action - log a warning but DON'T show an overlay
+                console.warn('[content.js] ⚠️ Unknown intervention type "' + action + '", treating as NONE');
+                return false;
         }
     } catch (error) {
         console.error('[content.js] ❌ Error creating intervention overlay:', error);
-        alert('Error creating intervention: ' + error.message);
         return false;
     }
 }
@@ -700,6 +707,9 @@ const DISABLE_KEY_PREFIX = 'stop_shopping.disabled:';
     // Flag to prevent double-triggering of analysis
     let isProcessingPurchase = false;
     let lastProcessedProduct = null;
+    
+    // Track when interventions are SHOWN (not just completed) - more robust than callback-based tracking
+    let lastInterventionShown = null;
     
     // Create a loading overlay while waiting for pipeline analysis
     function createLoadingOverlay(productName, price) {
@@ -769,10 +779,12 @@ const DISABLE_KEY_PREFIX = 'stop_shopping.disabled:';
             
             // Build intervention options with callbacks to reset state
             const onInterventionComplete = () => {
-                console.log('[content.js] 🔓 Intervention complete, resetting state');
+                console.log('[content.js] 🔓 Intervention COMPLETE callback fired!');
+                console.log('[content.js] ProductKey:', productKey);
                 isProcessingPurchase = false;
                 if (productKey) {
                     lastProcessedProduct = { key: productKey, timestamp: Date.now() };
+                    console.log('[content.js] ✅ Set lastProcessedProduct:', lastProcessedProduct);
                 }
             };
             
@@ -801,7 +813,12 @@ const DISABLE_KEY_PREFIX = 'stop_shopping.disabled:';
                 // Show a brief "Approved" toast for feedback
                 showApprovedToast();
             } else {
-                console.log('[content.js] 🛑 Intervention overlay shown');
+                console.log('[content.js] 🛑 Intervention overlay shown for product:', productKey);
+                // Track that we showed an intervention - this is more robust than relying on callbacks
+                if (productKey) {
+                    lastInterventionShown = { key: productKey, timestamp: Date.now() };
+                    console.log('[content.js] 📝 Recorded intervention shown for:', productKey);
+                }
             }
         } catch (error) {
             console.error('[content.js] ❌ Error handling pipeline result:', error);
@@ -869,13 +886,23 @@ const DISABLE_KEY_PREFIX = 'stop_shopping.disabled:';
                 return false;
             }
             
-            // Check if we just processed this same product (within 30 seconds)
+            // Check if we just processed this same product (within 60 seconds)
             if (lastProcessedProduct && lastProcessedProduct.key === productKey) {
                 const timeSinceLastProcess = Date.now() - lastProcessedProduct.timestamp;
-                if (timeSinceLastProcess < 30000) { // 30 second cooldown
-                    console.log('[content.js] ⚠️ Already processed this product recently, allowing click through');
-                    // Allow the actual purchase to proceed
-                    return true;
+                if (timeSinceLastProcess < 60000) { // 60 second cooldown
+                    console.log('[content.js] ✅ Already completed intervention for this product, allowing purchase');
+                    // Allow the actual purchase to proceed - don't call preventDefault
+                    return;
+                }
+            }
+            
+            // ALSO check if we SHOWED an intervention for this product recently (even if callback didn't fire)
+            if (lastInterventionShown && lastInterventionShown.key === productKey) {
+                const timeSinceIntervention = Date.now() - lastInterventionShown.timestamp;
+                if (timeSinceIntervention < 60000) { // 60 second window
+                    console.log('[content.js] ✅ Already showed intervention for this product recently, allowing purchase');
+                    // Allow the actual purchase to proceed - don't call preventDefault
+                    return;
                 }
             }
             
@@ -1043,22 +1070,60 @@ const DISABLE_KEY_PREFIX = 'stop_shopping.disabled:';
                                  form.querySelector('[name="submit.buy-now"]') ||
                                  form.querySelector('#one-click-button');
             
-            if ((isCartForm || isBuyNowForm) && !form.dataset.overlayShown) {
-                console.log('[content.js] Intercepting purchase form submission');
+            if (isCartForm || isBuyNowForm) {
+                const result = getPagePrice();
+                const productName = getProductName();
+                const priceDisplay = result.raw || (result.value ? `$${result.value}` : 'Price not found');
+                const productKey = `${productName}-${result.value || 'unknown'}`;
+                
+                console.log('[content.js] 📋 Form submission intercepted, productKey:', productKey);
+                
+                // Check if we already showed an intervention for this product (same logic as button click)
+                if (lastInterventionShown && lastInterventionShown.key === productKey) {
+                    const timeSinceIntervention = Date.now() - lastInterventionShown.timestamp;
+                    if (timeSinceIntervention < 60000) {
+                        console.log('[content.js] ✅ Form: Already showed intervention, allowing submission');
+                        return; // Allow form submission
+                    }
+                }
+                
+                if (lastProcessedProduct && lastProcessedProduct.key === productKey) {
+                    const timeSinceLastProcess = Date.now() - lastProcessedProduct.timestamp;
+                    if (timeSinceLastProcess < 60000) {
+                        console.log('[content.js] ✅ Form: Already processed product, allowing submission');
+                        return; // Allow form submission
+                    }
+                }
+                
+                // Check if already processing
+                if (isProcessingPurchase) {
+                    console.log('[content.js] ⚠️ Form: Already processing, ignoring');
+                    e.preventDefault();
+                    e.stopPropagation();
+                    return false;
+                }
+                
+                console.log('[content.js] 🛒 Intercepting purchase form submission');
                 e.preventDefault();
                 e.stopPropagation();
                 e.stopImmediatePropagation();
                 
-                form.dataset.overlayShown = 'true';
-                
-                const result = getPagePrice();
-                const productName = getProductName();
-                const priceDisplay = result.raw || (result.value ? `$${result.value}` : 'Price not found');
+                isProcessingPurchase = true;
                 
                 // Determine button text for action type
                 const buttonText = isBuyNowForm ? 'Buy Now' : 'Add to Cart';
                 
-                // Dispatch event for tracker.js
+                // Store pending purchase data
+                pendingPurchaseData = {
+                    raw: result.raw,
+                    value: result.value,
+                    productName: productName,
+                    priceDisplay: priceDisplay,
+                    buttonText: buttonText,
+                    productKey: productKey
+                };
+                
+                // Dispatch event for tracker.js (triggers pipeline API)
                 const cartEvent = new CustomEvent('stop-shopping-cart-click', {
                     detail: { 
                         raw: result.raw, 
@@ -1071,10 +1136,8 @@ const DISABLE_KEY_PREFIX = 'stop_shopping.disabled:';
                 });
                 window.dispatchEvent(cartEvent);
                 
-                createOverlay({ price: priceDisplay, productName: productName });
-                
-                // Reset after a delay so they can try again after overlay
-                setTimeout(() => { form.dataset.overlayShown = ''; }, 1000);
+                // Show loading overlay while waiting for pipeline result
+                createLoadingOverlay(productName, priceDisplay);
                 
                 return false;
             }

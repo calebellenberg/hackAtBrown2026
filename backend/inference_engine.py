@@ -17,10 +17,30 @@ class ImpulseInferenceEngine:
     
     Uses a weighted likelihood approach to combine noisy biometric and
     behavioral data, accounting for individual baseline differences.
+    
+    Supports two weight profiles:
+    - BEHAVIOR_ONLY_WEIGHTS: Used when biometrics are placeholders (current state)
+    - FULL_BIOMETRIC_WEIGHTS: For future use when Presage SDK provides real biometrics
     """
     
-    # Feature weights for likelihood combination
-    WEIGHTS = {
+    # Flag to indicate if we're using placeholder biometrics
+    # Set to False when real biometric data is available (e.g., Presage SDK)
+    USE_PLACEHOLDER_BIOMETRICS = True
+    
+    # Weight profile for behavior-only mode (when biometrics are placeholders)
+    # Prioritizes real telemetry data from browser extension
+    BEHAVIOR_ONLY_WEIGHTS = {
+        'heart_rate': 0.05,        # Placeholder - minimal weight
+        'respiration_rate': 0.05,  # Placeholder - minimal weight
+        'scroll_velocity': 0.30,   # Real data from tracker.js - high weight
+        'emotion_arousal': 0.10,   # Placeholder - reduced weight
+        'click_rate': 0.25,        # Real data from tracker.js - high weight
+        'time_to_cart': 0.25       # Real data from tracker.js - high weight (key impulse indicator)
+    }
+    
+    # Weight profile for full biometric mode (when real biometrics available)
+    # Balanced weights for all data sources
+    FULL_BIOMETRIC_WEIGHTS = {
         'heart_rate': 0.25,
         'respiration_rate': 0.20,
         'scroll_velocity': 0.15,
@@ -28,6 +48,20 @@ class ImpulseInferenceEngine:
         'click_rate': 0.10,
         'time_to_cart': 0.10
     }
+    
+    # Dynamic weight selection based on biometric availability
+    @classmethod
+    def get_weights(cls) -> dict:
+        """Get the appropriate weight profile based on biometric availability."""
+        if cls.USE_PLACEHOLDER_BIOMETRICS:
+            return cls.BEHAVIOR_ONLY_WEIGHTS
+        return cls.FULL_BIOMETRIC_WEIGHTS
+    
+    # Legacy WEIGHTS property for backward compatibility
+    @property
+    def WEIGHTS(self) -> dict:
+        """Get weights dynamically based on biometric availability."""
+        return self.get_weights()
     
     # Sigmoid steepness parameter for Z-score to likelihood mapping
     SIGMOID_K = 2.0

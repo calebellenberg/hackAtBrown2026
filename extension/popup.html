@@ -65,7 +65,7 @@
         font-weight: 600;
         color: var(--muted);
       }
-      .prefs-form input, .prefs-form select {
+      .prefs-form input, .prefs-form select, .prefs-form textarea {
         width: 100%;
         padding: 9px 10px;
         padding-right: 28px;
@@ -76,6 +76,12 @@
         font-size: 13px;
         background: rgba(255,255,255,0.06);
         color: var(--text);
+      }
+      .prefs-form textarea {
+        padding-right: 10px;
+        min-height: 80px;
+        resize: vertical;
+        font-family: inherit;
       }
       .prefs-form select {
         appearance: none;
@@ -91,11 +97,11 @@
         background-repeat: no-repeat;
         padding-right: 36px;
       }
-      .prefs-form input:focus, .prefs-form select:focus {
+      .prefs-form input:focus, .prefs-form select:focus, .prefs-form textarea:focus {
         border-color: var(--stop-red);
         outline: none;
       }
-      .prefs-form input::placeholder {
+      .prefs-form input::placeholder, .prefs-form textarea::placeholder {
         color: rgba(255,255,255,0.5);
       }
       .prefs-display {
@@ -140,6 +146,62 @@
       .hidden {
         display: none !important;
       }
+
+      /* Danger Zone styles */
+      .danger-zone {
+        margin-top: 16px;
+        padding: 12px;
+        background-color: rgba(225, 75, 75, 0.08);
+        border: 1px solid rgba(225, 75, 75, 0.2);
+        border-radius: 10px;
+      }
+      .danger-zone .section-subtitle {
+        color: rgba(225, 75, 75, 0.8);
+        margin-bottom: 8px;
+      }
+      .reset-btn {
+        background-color: transparent;
+        border: 1px solid rgba(225, 75, 75, 0.4);
+        color: rgba(225, 75, 75, 0.9);
+        font-size: 12px;
+        padding: 8px 12px;
+        box-shadow: none;
+      }
+      .reset-btn:hover {
+        background-color: rgba(225, 75, 75, 0.15);
+        border-color: rgba(225, 75, 75, 0.6);
+      }
+      .reset-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      /* Status message styles */
+      .status-msg {
+        font-size: 11px;
+        padding: 6px 10px;
+        border-radius: 6px;
+        margin-top: 8px;
+        display: none;
+      }
+      .status-msg.success {
+        display: block;
+        background-color: rgba(68, 207, 108, 0.15);
+        color: #44cf6c;
+        border: 1px solid rgba(68, 207, 108, 0.3);
+      }
+      .status-msg.error {
+        display: block;
+        background-color: rgba(225, 75, 75, 0.15);
+        color: #e14b4b;
+        border: 1px solid rgba(225, 75, 75, 0.3);
+      }
+      .status-msg.loading {
+        display: block;
+        background-color: rgba(255, 255, 255, 0.1);
+        color: var(--muted);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+      }
     </style>
   </head>
   <body>
@@ -165,6 +227,9 @@
         <option value="high">High - Strict warnings</option>
       </select>
 
+      <label for="financial-goals">Financial Goals and Purchases</label>
+      <textarea id="financial-goals" placeholder="e.g., Save $5000 for vacation, avoid impulse electronics purchases, prioritize quality over quantity..."></textarea>
+
       <button id="save-prefs-btn" class="save-prefs-btn">Save
         Preferences</button>
     </div>
@@ -174,6 +239,10 @@
       <p>Budget: <strong id="display-budget">-</strong>/month</p>
       <p>Large Purchase: <strong id="display-threshold">-</strong>+</p>
       <p>Sensitivity: <strong id="display-sensitivity">-</strong></p>
+      <div id="display-goals-container" style="display: none;">
+        <p style="margin-top: 8px; margin-bottom: 4px;">Financial Goals:</p>
+        <p id="display-goals" style="font-size: 11px; color: var(--muted); margin-top: 0; white-space: pre-wrap;"></p>
+      </div>
       <button id="edit-prefs-btn" class="edit-prefs-btn">Edit
         Preferences</button>
     </div>
@@ -182,6 +251,15 @@
     <div id="main-content" class="hidden">
       <p class="section-subtitle">Your preferences are set. Happy mindful
         shopping!</p>
+    </div>
+
+    <!-- Status message for API calls -->
+    <div id="status-msg" class="status-msg"></div>
+
+    <!-- Danger Zone (shown after setup) -->
+    <div id="danger-zone" class="danger-zone hidden">
+      <p class="section-subtitle">Danger Zone</p>
+      <button id="reset-memory-btn" class="reset-btn">Reset All Memory</button>
     </div>
 
     <script src="popup.js"></script>
