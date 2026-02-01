@@ -1,6 +1,66 @@
 /* -------------------- Behavioral Tracking & Logging -------------------- */
 (function behavioralTracking() {
     try {
+        // Lightweight shim for `chrome.storage.local` when not running as an extension
+        if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) {
+            try {
+                console.warn('[Tracker] chrome.storage not available — installing local shim for testing');
+
+                // Keep a single JSON object in localStorage under this key
+                const SHIM_KEY = 'stop_shopping.chrome_storage_shim_v1';
+
+                function readStore() {
+                    try {
+                        const raw = localStorage.getItem(SHIM_KEY);
+                        return raw ? JSON.parse(raw) : {};
+                    } catch (e) { return {}; }
+                }
+
+                function writeStore(obj) {
+                    try { localStorage.setItem(SHIM_KEY, JSON.stringify(obj)); } catch (e) {}
+                }
+
+                window.chrome = window.chrome || {};
+                window.chrome.storage = window.chrome.storage || {};
+                window.chrome.storage.local = {
+                    get: function (keys, callback) {
+                        const store = readStore();
+                        const out = {};
+                        if (typeof keys === 'string') {
+                            out[keys] = store[keys];
+                        } else if (Array.isArray(keys)) {
+                            for (const k of keys) out[k] = store[k];
+                        } else if (typeof keys === 'object' && keys !== null) {
+                            // keys may be an object of default values
+                            for (const k of Object.keys(keys)) out[k] = store[k] === undefined ? keys[k] : store[k];
+                        } else if (keys === null || keys === undefined) {
+                            // return all
+                            for (const k of Object.keys(store)) out[k] = store[k];
+                        } else {
+                            // unknown type - return all
+                            for (const k of Object.keys(store)) out[k] = store[k];
+                        }
+                        // async-ish callback to match chrome API
+                        setTimeout(() => { try { callback(out); } catch (e) {} }, 0);
+                    },
+                    set: function (items, callback) {
+                        const store = readStore();
+                        for (const k of Object.keys(items)) store[k] = items[k];
+                        writeStore(store);
+                        setTimeout(() => { try { if (callback) callback(); } catch (e) {} }, 0);
+                    },
+                    remove: function (keys, callback) {
+                        const store = readStore();
+                        if (typeof keys === 'string') delete store[keys];
+                        else if (Array.isArray(keys)) keys.forEach(k => delete store[k]);
+                        writeStore(store);
+                        setTimeout(() => { try { if (callback) callback(); } catch (e) {} }, 0);
+                    }
+                };
+            } catch (shimErr) {
+                console.warn('[Tracker] Failed to install chrome.storage shim', shimErr);
+            }
+        }
         // --- Price Extraction Utilities ---
         function parsePrice(text) {
             if (!text) return null;

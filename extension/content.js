@@ -241,7 +241,7 @@ function getProductName() {
 const pageLoadTime = Date.now();
 function createOverlay(opts = {}) {
     const {
-        title = 'DO NOT SHOP',
+        title = 'STOP AND THINK',
         message = 'Look at yourself. Do you really need this?',
         challenge = "I understand that I am about to shop and I am in a healthy state of mind",
         onUnlock = null
@@ -256,7 +256,7 @@ function createOverlay(opts = {}) {
     const priceHtml = opts.price ? `<p style="font-size:18px;margin:10px 0;color:#d9534f">Price: <strong>${opts.price}</strong></p>` : '';
     
     // If a product name was provided, include it
-    const productNameHtml = opts.productName ? `<p style="font-size:14px;margin:10px 0;color:#fff;max-width:500px;word-wrap:break-word;">🛍️ <strong>${opts.productName}</strong></p>` : '';
+    const productNameHtml = opts.productName ? `<p style="font-size:14px;margin:10px 0;color:#fff;max-width:500px;word-wrap:break-word;"><strong>${opts.productName}</strong></p>` : '';
 
     // Get current system time and time spent
     const now = new Date();
@@ -277,15 +277,12 @@ function createOverlay(opts = {}) {
     overlay.innerHTML = `
         <div class="lock-box">
             <h1>${title}</h1>
-            <p style="font-size:14px;margin:5px 0;color:#666;">📅 ${dateString} | 🕐 ${timeString}</p>
-            <p style="font-size:14px;margin:5px 0;color:#666;">⏱️ Time on site: <strong style="color:#d9534f;">${formatDuration(timeSpentMs)}</strong></p>
-            ${productNameHtml}
+            <p style="font-size:14px;margin:5px 0;color:#666;">${dateString} | ${timeString} | Time on site: <strong style="color:#d9534f;">${formatDuration(timeSpentMs)}</strong></p>
             ${priceHtml}
             <div class="camera-container">
                 <iframe src="${cameraPageUrl}" allow="camera" frameborder="0"></iframe>
             </div>
-            <p>${message}</p>
-            <p>To proceed, type the following:</p>
+            <p>${message} To proceed, type the following:</p>
             <p class="challenge-text">${challenge}</p>
             <input type="text" id="unlock-input" placeholder="Type here..." autocomplete="off">
         </div>
