@@ -3,7 +3,7 @@
   <head>
     <style>
       body {
-        width: 240px;
+        width: 280px;
         text-align: center;
         font-family: sans-serif;
         padding: 10px;
@@ -21,38 +21,100 @@
       button:hover {
         background-color: #45a049;
       }
-      .stats {
-        margin-top: 15px;
-        padding: 10px;
-        background-color: #f5f5f5;
-        border-radius: 4px;
+
+      /* Preferences form styles */
+      .prefs-form {
         text-align: left;
+        padding: 10px;
+        background-color: #f9f9f9;
+        border-radius: 4px;
+        margin-bottom: 10px;
+      }
+      .prefs-form label {
+        display: block;
+        margin-top: 10px;
+        font-size: 12px;
+        font-weight: bold;
+        color: #333;
+      }
+      .prefs-form input, .prefs-form select {
+        width: 100%;
+        padding: 8px;
+        margin-top: 4px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        box-sizing: border-box;
+        font-size: 13px;
+      }
+      .prefs-form input:focus, .prefs-form select:focus {
+        border-color: #4CAF50;
+        outline: none;
+      }
+      .prefs-display {
+        text-align: left;
+        padding: 10px;
+        background-color: #e8f5e9;
+        border-radius: 4px;
+        margin-bottom: 10px;
         font-size: 12px;
       }
-      .stats p {
-        margin: 5px 0;
+      .prefs-display p {
+        margin: 4px 0;
       }
-      .stats strong {
-        color: #d9534f;
+      .edit-prefs-btn {
+        background-color: #ff9800;
+        font-size: 12px;
+        padding: 6px 12px;
+      }
+      .edit-prefs-btn:hover {
+        background-color: #f57c00;
+      }
+      .save-prefs-btn {
+        background-color: #4CAF50;
+        margin-top: 10px;
+      }
+      .hidden {
+        display: none !important;
       }
     </style>
   </head>
   <body>
     <h3>Stop Shopping</h3>
-    <p>Click to read the page price (if present).</p>
-    <button id="get-price">Get Price</button>
-    <div id="price" style="margin-top:10px;font-weight:bold">—</div>
     
-    <button id="get-stats">Get Tracker Stats</button>
-    <div id="stats" class="stats" style="display:none">
-      <p>⏱️ Time on Site: <strong id="time-on-site">—</strong></p>
-      <p>🛒 Cart Clicks: <strong id="cart-clicks">—</strong></p>
-      <p>📊 Cart Click Rate: <strong id="cart-rate">—</strong>/min</p>
-      <p>⏱️ Time-to-Cart: <strong id="ttc">—</strong></p>
-      <p>💰 Last Price: <strong id="last-price">—</strong></p>
+    <!-- First-time setup / Edit preferences form -->
+    <div id="prefs-setup" class="prefs-form hidden">
+      <h4 style="margin:0 0 5px 0;color:#333;">Set Your Preferences</h4>
+      <p style="font-size:11px;color:#666;margin:0 0 10px 0;">Help us help you shop mindfully.</p>
+      
+      <label for="budget">Monthly Spending Budget ($)</label>
+      <input type="number" id="budget" placeholder="e.g., 500" min="0" step="1">
+      
+      <label for="threshold">Large Purchase Threshold ($)</label>
+      <input type="number" id="threshold" placeholder="e.g., 100" min="0" step="1">
+      
+      <label for="sensitivity">Spending Sensitivity</label>
+      <select id="sensitivity">
+        <option value="low">Low - Gentle reminders</option>
+        <option value="medium" selected>Medium - Balanced</option>
+        <option value="high">High - Strict warnings</option>
+      </select>
+      
+      <button id="save-prefs-btn" class="save-prefs-btn">Save Preferences</button>
     </div>
     
-    <button id="setup-btn" style="background-color:#2196F3;margin-top:10px;">Camera Setup</button>
+    <!-- Display saved preferences -->
+    <div id="prefs-display" class="prefs-display hidden">
+      <p>Budget: <strong id="display-budget">-</strong>/month</p>
+      <p>Large Purchase: <strong id="display-threshold">-</strong>+</p>
+      <p>Sensitivity: <strong id="display-sensitivity">-</strong></p>
+      <button id="edit-prefs-btn" class="edit-prefs-btn">Edit Preferences</button>
+    </div>
+    
+    <!-- Main content (shown after setup) -->
+    <div id="main-content" class="hidden">
+      <p style="color:#666;font-size:12px;">Your preferences are set. Happy mindful shopping!</p>
+    </div>
+    
     <script src="popup.js"></script>
   </body>
 </html>

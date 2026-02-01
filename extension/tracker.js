@@ -152,6 +152,7 @@
         const pageLoadTimestamp = Date.now();
         let ttcRecorded = null; // Time-to-Cart (seconds)
         let priceRecorded = null; // Price info at time of cart click
+        let productNameRecorded = null; // Product name at time of cart click
         let peakScrollVelocity = 0; // pixels per second
         let clickCount = 0;
         let clickTimestamps = [];
@@ -194,6 +195,7 @@
                 navPath,
                 ttcRecorded,
                 priceRecorded,
+                productNameRecorded,
                 peakScrollVelocity,
                 cartClickCount
             };
@@ -231,6 +233,7 @@
                 }
                 if (typeof obj.ttcRecorded === 'number') ttcRecorded = obj.ttcRecorded;
                 if (obj.priceRecorded) priceRecorded = obj.priceRecorded;
+                if (obj.productNameRecorded) productNameRecorded = obj.productNameRecorded;
                 if (typeof obj.peakScrollVelocity === 'number') peakScrollVelocity = Math.max(peakScrollVelocity, obj.peakScrollVelocity);
                 if (typeof obj.cartClickCount === 'number') cartClickCount = obj.cartClickCount;
             } catch (e) { console.warn('[Tracker] restoreState failed', e); }
@@ -358,6 +361,81 @@
         // Track when content.js handles a cart click (to avoid double-counting in click listener)
         let lastCartClickFromContentJs = 0;
         
+        // Function to save cart click summary to chrome.storage.local
+        function saveCartClickSummary(actionType = 'add_to_cart') {
+            try {
+                const now = performance.now();
+                const elapsed = (now - pageLoadTime) / 1000;
+                const cartClickRate = elapsed > 0 ? (cartClickCount / (elapsed / 60)) : 0;
+                
+                // Build the summary object with all tracked data
+                const summary = {
+                    // Metadata
+                    id: `${actionType}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                    timestamp: new Date().toISOString(),
+                    actionType: actionType, // 'add_to_cart' or 'buy_now'
+                    
+                    // Site info
+                    domain: baseDomain,
+                    pageUrl: location.href,
+                    
+                    // Product info
+                    productName: productNameRecorded || null,
+                    priceRaw: priceRecorded?.raw || null,
+                    priceValue: priceRecorded?.value || null,
+                    
+                    // Time metrics
+                    systemStartTime: systemStartTime,
+                    timeToCart: ttcRecorded ? parseFloat(ttcRecorded.toFixed(2)) : null,
+                    timeOnSite: parseFloat(elapsed.toFixed(2)),
+                    
+                    // Interaction metrics
+                    clickCount: clickCount,
+                    cartClickCount: cartClickCount,
+                    cartClickRate: parseFloat(cartClickRate.toFixed(2)),
+                    
+                    // Scroll behavior
+                    peakScrollVelocity: parseFloat(peakScrollVelocity.toFixed(2)),
+                    
+                    // Navigation
+                    navigationPathLength: navPath.length,
+                    navigationPath: navPath.slice(-10) // Last 10 pages to avoid huge data
+                };
+                
+                // Determine storage key based on action type
+                const storageKey = actionType === 'buy_now' ? 'buy_now_history' : 'add_to_cart_history';
+                
+                // Save to chrome.storage.local
+                chrome.storage.local.get([storageKey, 'all_purchase_attempts'], (result) => {
+                    // Save to specific history (add_to_cart or buy_now)
+                    const specificHistory = result[storageKey] || [];
+                    specificHistory.push(summary);
+                    const trimmedSpecific = specificHistory.slice(-100);
+                    
+                    // Also save to combined history for easy API access
+                    const allHistory = result.all_purchase_attempts || [];
+                    allHistory.push(summary);
+                    const trimmedAll = allHistory.slice(-200);
+                    
+                    const updateObj = {
+                        [storageKey]: trimmedSpecific,
+                        all_purchase_attempts: trimmedAll
+                    };
+                    
+                    chrome.storage.local.set(updateObj, () => {
+                        console.log(`[Tracker] ${actionType.toUpperCase()} summary saved to storage:`, summary);
+                        console.log(`[Tracker] ${storageKey} entries:`, trimmedSpecific.length);
+                        console.log(`[Tracker] all_purchase_attempts entries:`, trimmedAll.length);
+                    });
+                });
+                
+                return summary;
+            } catch (e) {
+                console.warn('[Tracker] Failed to save cart click summary:', e);
+                return null;
+            }
+        }
+        
         // Listen for cart click events from content.js (this is the primary source of cart click data)
         window.addEventListener('stop-shopping-cart-click', (ev) => {
             try {
@@ -377,17 +455,38 @@
                     console.log('[Tracker] Price recorded:', priceRecorded);
                 }
                 
+                // Record product name if available
+                if (detail && detail.productName) {
+                    productNameRecorded = detail.productName;
+                    console.log('[Tracker] Product name recorded:', productNameRecorded);
+                }
+                
                 // Record time-to-cart if not already recorded
                 if (ttcRecorded === null) {
                     const now = performance.now();
                     ttcRecorded = (now - pageLoadTime) / 1000;
                     const timeOnSite = (now - pageLoadTime) / 1000;
+<<<<<<< HEAD
                     console.log(`[Tracker] ⚠️ ADD-TO-CART DETECTED (via content.js)`);
                     console.log(`[Tracker] Time-to-Cart (TTC): ${ttcRecorded.toFixed(2)}s`);
                     console.log(`[Tracker] Time on Site: ${timeOnSite.toFixed(2)}s`);
                     console.log(`[Tracker] Price (raw): ${priceRecorded?.raw || 'N/A'}`);
                     console.log(`[Tracker] Price (value): ${priceRecorded?.value ? `$${priceRecorded.value.toFixed(2)}` : 'N/A'}`);
+=======
+                    console.warn(`[Tracker] ⚠️ ADD-TO-CART DETECTED (via content.js)`);
+                    console.warn(`[Tracker] Product: ${productNameRecorded || 'N/A'}`);
+                    console.warn(`[Tracker] Time-to-Cart (TTC): ${ttcRecorded.toFixed(2)}s`);
+                    console.warn(`[Tracker] Time on Site: ${timeOnSite.toFixed(2)}s`);
+                    console.warn(`[Tracker] Price (raw): ${priceRecorded?.raw || 'N/A'}`);
+                    console.warn(`[Tracker] Price (value): ${priceRecorded?.value ? `$${priceRecorded.value.toFixed(2)}` : 'N/A'}`);
+>>>>>>> 4dd1cdc (data json)
                 }
+                
+                // Determine action type based on button text if available
+                const actionType = (detail?.buttonText || '').toLowerCase().includes('buy now') ? 'buy_now' : 'add_to_cart';
+                
+                // Save the cart click summary to chrome.storage.local
+                saveCartClickSummary(actionType);
                 
                 saveStateDebounced();
             } catch (e) { 
@@ -510,6 +609,12 @@
                 console.log('Time-to-Cart (TTC): Not yet recorded');
             }
             
+            if (productNameRecorded) {
+                console.log('Product Name:', productNameRecorded);
+            } else {
+                console.log('Product Name: Not recorded');
+            }
+            
             if (priceRecorded) {
                 console.log('Price (Raw):', priceRecorded.raw || 'N/A');
                 console.log('Price (Value):', priceRecorded.value ? `$${priceRecorded.value.toFixed(2)}` : 'N/A');
@@ -534,6 +639,35 @@
             console.log('Navigation Path Length:', navPath.length);
             console.log('Current Page:', location.href);
             console.log('Base Domain:', baseDomain);
+            
+            // Print saved cart click history JSON
+            console.log('---');
+            console.log('📦 SAVED PURCHASE HISTORY (JSON):');
+            chrome.storage.local.get(['add_to_cart_history', 'buy_now_history', 'all_purchase_attempts'], (result) => {
+                const addToCartHistory = result.add_to_cart_history || [];
+                const buyNowHistory = result.buy_now_history || [];
+                const allHistory = result.all_purchase_attempts || [];
+                
+                console.log('🛒 Add to Cart entries:', addToCartHistory.length);
+                if (addToCartHistory.length > 0) {
+                    console.log('ADD_TO_CART_JSON:', JSON.stringify(addToCartHistory, null, 2));
+                }
+                
+                console.log('💳 Buy Now entries:', buyNowHistory.length);
+                if (buyNowHistory.length > 0) {
+                    console.log('BUY_NOW_JSON:', JSON.stringify(buyNowHistory, null, 2));
+                }
+                
+                console.log('📊 All Purchase Attempts:', allHistory.length);
+                if (allHistory.length > 0) {
+                    console.log('ALL_PURCHASES_JSON:', JSON.stringify(allHistory, null, 2));
+                }
+                
+                if (addToCartHistory.length === 0 && buyNowHistory.length === 0) {
+                    console.log('No purchase attempts saved yet.');
+                }
+            });
+            
             console.groupEnd();
         }, 10000);
 
@@ -560,6 +694,7 @@
                     navPath,
                     ttc: ttcRecorded,
                     price: priceRecorded,
+                    productName: productNameRecorded,
                     timeOnSite: parseFloat(elapsed.toFixed(2)),
                     peakScrollVelocity,
                     cartClickCount,
@@ -577,6 +712,30 @@
                 }
                 if (msg && msg.type === 'GET_TRACKER_SUMMARY') {
                     sendResponse(window.__shoppingTracker.getSummary());
+                }
+                if (msg && msg.type === 'GET_ADD_TO_CART_HISTORY') {
+                    chrome.storage.local.get(['add_to_cart_history'], (result) => {
+                        sendResponse({ history: result.add_to_cart_history || [] });
+                    });
+                    return true;
+                }
+                if (msg && msg.type === 'GET_BUY_NOW_HISTORY') {
+                    chrome.storage.local.get(['buy_now_history'], (result) => {
+                        sendResponse({ history: result.buy_now_history || [] });
+                    });
+                    return true;
+                }
+                if (msg && msg.type === 'GET_ALL_PURCHASE_HISTORY') {
+                    chrome.storage.local.get(['all_purchase_attempts'], (result) => {
+                        sendResponse({ history: result.all_purchase_attempts || [] });
+                    });
+                    return true;
+                }
+                if (msg && msg.type === 'CLEAR_PURCHASE_HISTORY') {
+                    chrome.storage.local.remove(['add_to_cart_history', 'buy_now_history', 'all_purchase_attempts'], () => {
+                        sendResponse({ success: true });
+                    });
+                    return true;
                 }
             });
         } catch (e) {

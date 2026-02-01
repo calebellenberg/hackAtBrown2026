@@ -158,6 +158,85 @@ function getPagePrice() {
     return getGenericPrice();
 }
 
+// Product name extraction utilities
+function getAmazonProductName() {
+    const selectors = [
+        '#productTitle',
+        '#title',
+        'h1#title span',
+        '[data-feature-name="title"]',
+        'h1.product-title-word-break'
+    ];
+    for (const selector of selectors) {
+        const el = document.querySelector(selector);
+        if (el?.textContent) {
+            const name = el.textContent.trim();
+            if (name.length > 0) {
+                console.log('[content.js] Amazon product name found:', name.substring(0, 50) + '...');
+                return name;
+            }
+        }
+    }
+    return null;
+}
+
+function getShopifyProductName() {
+    const selectors = [
+        'h1.product__title',
+        'h1.product-title',
+        '.product-single__title',
+        '[data-product-title]',
+        'h1[itemprop="name"]'
+    ];
+    for (const selector of selectors) {
+        const el = document.querySelector(selector);
+        if (el?.textContent) {
+            const name = el.textContent.trim();
+            if (name.length > 0) return name;
+        }
+    }
+    return null;
+}
+
+function getGenericProductName() {
+    const selectors = [
+        'h1[itemprop="name"]',
+        'h1.product-name',
+        'h1.product-title',
+        '.product-name h1',
+        '.product-title h1',
+        'h1.pdp-title',
+        '[data-testid="product-title"]',
+        'h1'
+    ];
+    for (const selector of selectors) {
+        const el = document.querySelector(selector);
+        if (el?.textContent) {
+            const name = el.textContent.trim();
+            // Filter out generic headers
+            if (name.length > 0 && name.length < 500 && 
+                !name.toLowerCase().includes('shopping cart') &&
+                !name.toLowerCase().includes('sign in')) {
+                return name;
+            }
+        }
+    }
+    // Fallback: try document title
+    const docTitle = document.title;
+    if (docTitle && docTitle.length > 0) {
+        // Remove common suffixes like "| Amazon.com" or "- Best Buy"
+        return docTitle.split(/[|\-–—]/)[0].trim();
+    }
+    return null;
+}
+
+function getProductName() {
+    const site = getSite();
+    if (site === 'amazon') return getAmazonProductName();
+    if (site === 'shopify') return getShopifyProductName();
+    return getGenericProductName();
+}
+
 // Generic overlay builder used for both shopping and gambling messages
 const pageLoadTime = Date.now();
 function createOverlay(opts = {}) {
@@ -175,6 +254,9 @@ function createOverlay(opts = {}) {
 
     // If a price was provided, include it in the overlay content
     const priceHtml = opts.price ? `<p style="font-size:18px;margin:10px 0;color:#d9534f">Price: <strong>${opts.price}</strong></p>` : '';
+    
+    // If a product name was provided, include it
+    const productNameHtml = opts.productName ? `<p style="font-size:14px;margin:10px 0;color:#fff;max-width:500px;word-wrap:break-word;">🛍️ <strong>${opts.productName}</strong></p>` : '';
 
     // Get current system time and time spent
     const now = new Date();
@@ -197,6 +279,7 @@ function createOverlay(opts = {}) {
             <h1>${title}</h1>
             <p style="font-size:14px;margin:5px 0;color:#666;">📅 ${dateString} | 🕐 ${timeString}</p>
             <p style="font-size:14px;margin:5px 0;color:#666;">⏱️ Time on site: <strong style="color:#d9534f;">${formatDuration(timeSpentMs)}</strong></p>
+            ${productNameHtml}
             ${priceHtml}
             <div class="camera-container">
                 <iframe src="${cameraPageUrl}" allow="camera" frameborder="0"></iframe>
@@ -278,30 +361,38 @@ const DISABLE_KEY_PREFIX = 'stop_shopping.disabled:';
         button.dataset.intercepted = 'true';
 
         button.addEventListener('click', (e) => {
-            console.log('Add to Cart clicked - intercepting');
+            console.log('Purchase button clicked - intercepting');
             const result = getPagePrice();
+            const productName = getProductName();
             const priceDisplay = result.raw || (result.value ? `$${result.value}` : 'Price not found');
             const clickTime = Date.now();
+            
+            // Get button text to distinguish Add to Cart vs Buy Now
+            const buttonText = (button.innerText || button.value || button.getAttribute('aria-label') || '').trim();
 
             // Dispatch custom event with price AND cart click data for tracker.js
             const cartEvent = new CustomEvent('stop-shopping-cart-click', {
                 detail: { 
                     raw: result.raw, 
-                    value: result.value, 
+                    value: result.value,
+                    productName: productName,
+                    buttonText: buttonText,
                     timestamp: clickTime,
                     cartClickDate: new Date(clickTime).toISOString()
                 }
             });
             window.dispatchEvent(cartEvent);
-            console.log('[content.js] Dispatched cart click event with price:', result);
+            console.log('[content.js] Dispatched cart click event with price:', result, 'product:', productName);
 
             const overlayOpts = isGambling ? {
                 title: 'DO NOT GAMBLE',
                 message: 'Gambling can be addictive — pause and think before you wager.',
                 challenge: 'I understand that I am about to gamble and I will make a rational decision',
-                price: priceDisplay
+                price: priceDisplay,
+                productName: productName
             } : {
-                price: priceDisplay
+                price: priceDisplay,
+                productName: productName
             };
 
             createOverlay(overlayOpts);
@@ -324,8 +415,9 @@ const DISABLE_KEY_PREFIX = 'stop_shopping.disabled:';
     }
 
     // Expose find/attach logic (re-implemented from dist)
-    function findAndInterceptAddToCartButton() {
+    function findAndInterceptPurchaseButtons() {
         const selectors = [
+            // Add to Cart selectors
             '#add-to-cart-button',
             '#addToCart',
             '#submit.add-to-cart-button',
@@ -336,44 +428,78 @@ const DISABLE_KEY_PREFIX = 'stop_shopping.disabled:';
             'input[value="Add to cart"]',
             'button[aria-label*="Add to Cart"]',
             'button[aria-label*="Add to cart"]',
-            '#buy-now-button',
             '.add-to-cart-button',
-            '[data-action="add-to-cart"]'
+            '[data-action="add-to-cart"]',
+            '.add-to-cart',
+            '[data-testid="add-to-cart"]',
+            
+            // Buy Now selectors
+            '#buy-now-button',
+            '#buyNow',
+            '#submit.buy-now-button',
+            '[name="submit.buy-now"]',
+            'input[name="submit.buy-now"]',
+            '[data-feature-name="buy-now"]',
+            'input[value="Buy Now"]',
+            'input[value="Buy now"]',
+            'button[aria-label*="Buy Now"]',
+            'button[aria-label*="Buy now"]',
+            '.buy-now-button',
+            '[data-action="buy-now"]',
+            '.buy-now',
+            '[data-testid="buy-now"]',
+            '#one-click-button',
+            '#turbo-checkout-pyo-button',
+            '[data-feature-name="turbo-checkout"]',
+            '#submitOrderButtonId',
+            '.instant-buy',
+            '[data-action="checkout"]'
         ];
 
-        const findButton = () => {
+        const findAllButtons = () => {
+            const buttons = [];
             for (const sel of selectors) {
-                const btn = document.querySelector(sel);
-                if (btn) {
-                    console.log('[content.js] Found add-to-cart button with selector:', sel);
-                    return btn;
-                }
+                const matches = document.querySelectorAll(sel);
+                matches.forEach(btn => {
+                    if (!btn.dataset.intercepted) {
+                        console.log('[content.js] Found purchase button with selector:', sel);
+                        buttons.push(btn);
+                    }
+                });
             }
-            return null;
+            return buttons;
         };
 
-        let button = findButton();
-        if (!button) {
-            console.log('[content.js] Add-to-cart button not found yet, setting up observer');
-            const observer = new MutationObserver(() => {
-                button = findButton();
-                if (button && !button.dataset.intercepted) {
-                    attachClickListener(button);
-                }
-            });
-            observer.observe(document.body, { childList: true, subtree: true });
-        } else if (!button.dataset.intercepted) {
-            attachClickListener(button);
+        const interceptAll = () => {
+            const buttons = findAllButtons();
+            buttons.forEach(btn => attachClickListener(btn));
+            return buttons.length;
+        };
+
+        const count = interceptAll();
+        if (count === 0) {
+            console.log('[content.js] No purchase buttons found yet, setting up observer');
         }
         
-        // Also intercept form submissions for add-to-cart forms
+        // Always set up observer to catch dynamically added buttons
+        const observer = new MutationObserver(() => {
+            interceptAll();
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+        
+        // Also intercept form submissions for add-to-cart and buy-now forms
         document.addEventListener('submit', (e) => {
             const form = e.target;
             const isCartForm = form.id === 'addToCart' || 
                                form.querySelector('#add-to-cart-button') ||
                                form.querySelector('[name="submit.add-to-cart"]');
-            if (isCartForm && !form.dataset.overlayShown) {
-                console.log('[content.js] Intercepting add-to-cart form submission');
+            const isBuyNowForm = form.id === 'buyNow' ||
+                                 form.querySelector('#buy-now-button') ||
+                                 form.querySelector('[name="submit.buy-now"]') ||
+                                 form.querySelector('#one-click-button');
+            
+            if ((isCartForm || isBuyNowForm) && !form.dataset.overlayShown) {
+                console.log('[content.js] Intercepting purchase form submission');
                 e.preventDefault();
                 e.stopPropagation();
                 e.stopImmediatePropagation();
@@ -381,20 +507,26 @@ const DISABLE_KEY_PREFIX = 'stop_shopping.disabled:';
                 form.dataset.overlayShown = 'true';
                 
                 const result = getPagePrice();
+                const productName = getProductName();
                 const priceDisplay = result.raw || (result.value ? `$${result.value}` : 'Price not found');
+                
+                // Determine button text for action type
+                const buttonText = isBuyNowForm ? 'Buy Now' : 'Add to Cart';
                 
                 // Dispatch event for tracker.js
                 const cartEvent = new CustomEvent('stop-shopping-cart-click', {
                     detail: { 
                         raw: result.raw, 
-                        value: result.value, 
+                        value: result.value,
+                        productName: productName,
+                        buttonText: buttonText,
                         timestamp: Date.now(),
                         cartClickDate: new Date().toISOString()
                     }
                 });
                 window.dispatchEvent(cartEvent);
                 
-                createOverlay({ price: priceDisplay });
+                createOverlay({ price: priceDisplay, productName: productName });
                 
                 // Reset after a delay so they can try again after overlay
                 setTimeout(() => { form.dataset.overlayShown = ''; }, 1000);
@@ -404,7 +536,7 @@ const DISABLE_KEY_PREFIX = 'stop_shopping.disabled:';
         }, true);
     }
 
-    try { findAndInterceptAddToCartButton(); } catch (e) { console.warn('Add-to-cart interception failed', e); }
+    try { findAndInterceptPurchaseButtons(); } catch (e) { console.warn('Purchase button interception failed', e); }
 
     // Backwards-compatible message API for GET_PRICE
     try {
