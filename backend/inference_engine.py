@@ -23,6 +23,30 @@ class ImpulseInferenceEngine:
     - FULL_BIOMETRIC_WEIGHTS: For future use when Presage SDK provides real biometrics
     """
     
+    # Flag to indicate whether we're using placeholder biometrics
+    # Set to True when Presage SDK is not available or not providing real data
+    USE_PLACEHOLDER_BIOMETRICS = True
+    
+    # Weight profile when biometrics are placeholders (behavior-focused)
+    BEHAVIOR_ONLY_WEIGHTS = {
+        'heart_rate': 0.03,
+        'respiration_rate': 0.03,
+        'scroll_velocity': 0.26,
+        'emotion_arousal': 0.34,
+        'click_rate': 0.17,
+        'time_to_cart': 0.17
+    }
+    
+    # Weight profile when real biometrics are available
+    FULL_BIOMETRIC_WEIGHTS = {
+        'heart_rate': 0.15,
+        'respiration_rate': 0.15,
+        'scroll_velocity': 0.20,
+        'emotion_arousal': 0.20,
+        'click_rate': 0.15,
+        'time_to_cart': 0.15
+    }
+    
     # Feature weights for likelihood combination (persage stats weighted very low)
     WEIGHTS = {
         'heart_rate': 0.03,

@@ -842,6 +842,14 @@ async def pipeline_analyze(request: PipelineRequest) -> PipelineResponse:
     try:
         # Step 1: Fetch real vitals from persage (or fallback to defaults)
         biometrics = await get_current_biometrics()
+        
+        # Calculate derived telemetry values
+        # Click rate: clicks per second (avoid division by zero)
+        click_rate_calculated = request.click_count / max(request.time_on_site, 1.0)
+        
+        # Time to cart: use provided value or fallback to time_on_site
+        time_to_cart_value = request.time_to_cart if request.time_to_cart is not None else request.time_on_site
+        
         # Step 2: Prepare Fast Brain input data
         current_data = {
             "heart_rate": biometrics["heart_rate"],
