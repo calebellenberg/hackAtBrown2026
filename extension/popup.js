@@ -309,3 +309,56 @@ if (resetMemoryBtn) {
 // Initialize on load
 initPreferences();
 
+// ==================== Camera (browser getUserMedia) + Persage vitals ====================
+const VITALS_URL = 'http://localhost:8766/vitals';
+const POLL_MS = 1500;
+
+const popupCam = document.getElementById('popup-cam');
+const popupHeart = document.getElementById('popup-heart');
+const popupBreath = document.getElementById('popup-breath');
+const vitalsStatus = document.getElementById('vitals-status');
+
+if (popupCam) {
+  navigator.mediaDevices.getUserMedia({ video: true })
+    .then(function (stream) {
+      popupCam.srcObject = stream;
+    })
+    .catch(function (err) {
+      console.error('Popup camera:', err);
+      if (vitalsStatus) vitalsStatus.textContent = 'Camera: allow access when prompted';
+    });
+}
+
+var vitalsPollTimer = null;
+function pollVitals() {
+  if (!popupHeart || !popupBreath || !vitalsStatus) return;
+  fetch(VITALS_URL)
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      var hr = data.heart_rate;
+      var br = data.respiration_rate;
+      popupHeart.textContent = (hr != null && hr > 0) ? Math.round(hr) : '--';
+      popupBreath.textContent = (br != null && br > 0) ? Math.round(br) : '--';
+      vitalsStatus.textContent = 'Vitals: live';
+      vitalsStatus.className = 'vitals-status connected';
+    })
+    .catch(function () {
+      popupHeart.textContent = '--';
+      popupBreath.textContent = '--';
+      vitalsStatus.textContent = 'Vitals: start broker (port 8766) for live data';
+      vitalsStatus.className = 'vitals-status disconnected';
+    });
+}
+
+pollVitals();
+vitalsPollTimer = setInterval(pollVitals, POLL_MS);
+
+document.addEventListener('visibilitychange', function () {
+  if (document.hidden) {
+    if (vitalsPollTimer) clearInterval(vitalsPollTimer);
+    if (popupCam && popupCam.srcObject) {
+      popupCam.srcObject.getTracks().forEach(function (t) { t.stop(); });
+    }
+  }
+});
+

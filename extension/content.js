@@ -983,7 +983,7 @@ const DISABLE_KEY_PREFIX = 'stop_shopping.disabled:';
             }
             
             return false;
-        }, true);
+        }, true); // capture phase so we run before the site's handler
     }
 
     // Expose find/attach logic (re-implemented from dist)
@@ -1058,7 +1058,48 @@ const DISABLE_KEY_PREFIX = 'stop_shopping.disabled:';
             interceptAll();
         });
         observer.observe(document.body, { childList: true, subtree: true });
-        
+
+        // Capture-phase fallback: catch Add to Cart / Buy Now by text when button wasn't in our selectors
+        document.addEventListener('click', (e) => {
+            const buttonLike = e.target.closest('button, input[type="submit"], input[type="button"], [role="button"], [data-action="add-to-cart"], [data-action="buy-now"]');
+            if (!buttonLike) return;
+            const text = (buttonLike.value || buttonLike.textContent || buttonLike.getAttribute('aria-label') || '').toLowerCase();
+            const isAddCart = text.includes('add to cart') || text.includes('add to basket');
+            const isBuyNow = text.includes('buy now') || text.includes('proceed to checkout') || text.includes('buy with');
+            if (!isAddCart && !isBuyNow) return;
+            if (buttonLike.dataset.intercepted) return; // already handled by attachClickListener
+            if (isProcessingPurchase) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                return false;
+            }
+            buttonLike.dataset.intercepted = 'true';
+            isProcessingPurchase = true;
+            setTimeout(() => {
+                if (isProcessingPurchase) {
+                    isProcessingPurchase = false;
+                }
+            }, 60000);
+            const result = getPagePrice();
+            const productName = getProductName();
+            const priceDisplay = result.raw || (result.value ? `$${result.value}` : 'Price not found');
+            const productKey = productName + '-' + (result.value || 'unknown');
+            pendingPurchaseData = { raw: result.raw, value: result.value, productName: productName, priceDisplay: priceDisplay, productKey: productKey, buttonText: isBuyNow ? 'Buy Now' : 'Add to Cart' };
+            window.dispatchEvent(new CustomEvent('stop-shopping-cart-click', {
+                detail: { raw: result.raw, value: result.value, productName: productName, buttonText: pendingPurchaseData.buttonText, timestamp: Date.now(), cartClickDate: new Date().toISOString() }
+            }));
+            try {
+                createLoadingOverlay(productName, priceDisplay);
+            } catch (err) {
+                console.error('[content.js] Error creating loading overlay:', err);
+            }
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            return false;
+        }, true);
+
         // Also intercept form submissions for add-to-cart and buy-now forms
         document.addEventListener('submit', (e) => {
             const form = e.target;

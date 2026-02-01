@@ -146,67 +146,81 @@
       .hidden {
         display: none !important;
       }
-
-      /* Danger Zone styles */
-      .danger-zone {
-        margin-top: 16px;
-        padding: 12px;
-        background-color: rgba(225, 75, 75, 0.08);
-        border: 1px solid rgba(225, 75, 75, 0.2);
+      /* Camera + Persage vitals */
+      .live-section {
+        background: var(--panel);
         border-radius: 10px;
+        padding: 10px;
+        margin-bottom: 12px;
+        border: 1px solid rgba(255,255,255,0.06);
       }
-      .danger-zone .section-subtitle {
-        color: rgba(225, 75, 75, 0.8);
-        margin-bottom: 8px;
-      }
-      .reset-btn {
-        background-color: transparent;
-        border: 1px solid rgba(225, 75, 75, 0.4);
-        color: rgba(225, 75, 75, 0.9);
+      .live-section h4 {
+        margin: 0 0 8px 0;
         font-size: 12px;
-        padding: 8px 12px;
-        box-shadow: none;
-      }
-      .reset-btn:hover {
-        background-color: rgba(225, 75, 75, 0.15);
-        border-color: rgba(225, 75, 75, 0.6);
-      }
-      .reset-btn:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-      }
-
-      /* Status message styles */
-      .status-msg {
-        font-size: 11px;
-        padding: 6px 10px;
-        border-radius: 6px;
-        margin-top: 8px;
-        display: none;
-      }
-      .status-msg.success {
-        display: block;
-        background-color: rgba(68, 207, 108, 0.15);
-        color: #44cf6c;
-        border: 1px solid rgba(68, 207, 108, 0.3);
-      }
-      .status-msg.error {
-        display: block;
-        background-color: rgba(225, 75, 75, 0.15);
-        color: #e14b4b;
-        border: 1px solid rgba(225, 75, 75, 0.3);
-      }
-      .status-msg.loading {
-        display: block;
-        background-color: rgba(255, 255, 255, 0.1);
         color: var(--muted);
-        border: 1px solid rgba(255, 255, 255, 0.1);
+        text-transform: uppercase;
       }
+      .popup-camera {
+        width: 100%;
+        max-height: 120px;
+        object-fit: cover;
+        border-radius: 8px;
+        background: #000;
+        transform: scaleX(-1);
+      }
+      .vitals-row {
+        display: flex;
+        gap: 12px;
+        margin-top: 8px;
+        justify-content: center;
+      }
+      .vital-box {
+        text-align: center;
+        padding: 8px 12px;
+        background: rgba(255,255,255,0.06);
+        border-radius: 8px;
+        min-width: 70px;
+      }
+      .vital-value {
+        font-size: 18px;
+        font-weight: 700;
+        color: #00ff88;
+      }
+      .vital-label {
+        font-size: 10px;
+        color: var(--muted);
+        text-transform: uppercase;
+        margin-top: 2px;
+      }
+      .vitals-status {
+        font-size: 10px;
+        color: var(--muted);
+        margin-top: 6px;
+      }
+      .vitals-status.connected { color: #00ff88; }
+      .vitals-status.disconnected { color: var(--stop-red); }
     </style>
   </head>
   <body>
-    <img src="icon.png" alt="Stop Shopping" class="logo" />
+    <img src="icon.png" alt="Stopify" class="logo" />
     <h3 class="title">Stopify</h3>
+
+    <!-- Camera + Persage vitals (browser camera, vitals from backend) -->
+    <div class="live-section">
+      <h4>Live</h4>
+      <video id="popup-cam" class="popup-camera" autoplay muted playsinline></video>
+      <div class="vitals-row">
+        <div class="vital-box">
+          <div id="popup-heart" class="vital-value">--</div>
+          <div class="vital-label">Heart (BPM)</div>
+        </div>
+        <div class="vital-box">
+          <div id="popup-breath" class="vital-value">--</div>
+          <div class="vital-label">Breath (RPM)</div>
+        </div>
+      </div>
+      <div id="vitals-status" class="vitals-status disconnected">Vitals: connecting…</div>
+    </div>
 
     <!-- First-time setup / Edit preferences form -->
     <div id="prefs-setup" class="prefs-form hidden">

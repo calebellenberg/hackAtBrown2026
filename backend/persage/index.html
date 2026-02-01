@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SmartSpectra Live</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { 
+            background: #111; 
+            color: white; 
+            font-family: sans-serif; 
+            display: flex; 
+            flex-direction: column;
+            align-items: center; 
+            justify-content: center; 
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+        .camera-container {
+            border: 2px solid #333;
+            border-radius: 12px;
+            overflow: hidden;
+            background: #000;
+        }
+        .camera-feed {
+            width: 640px;
+            height: 480px;
+            object-fit: cover;
+        }
+        .vitals-container {
+            display: flex;
+            gap: 20px;
+        }
+        .box { 
+            text-align: center; 
+            padding: 20px 40px; 
+            border: 1px solid #333; 
+            border-radius: 10px; 
+            background: rgba(255,255,255,0.05);
+        }
+        .val { 
+            font-size: 3rem; 
+            font-weight: bold; 
+            color: #00ff88; 
+        }
+        .label { 
+            color: #888; 
+            font-size: 0.8rem; 
+            text-transform: uppercase; 
+            margin-top: 5px;
+        }
+        .status {
+            font-size: 0.75rem;
+            color: #666;
+            margin-top: 10px;
+        }
+        .status.connected { color: #00ff88; }
+        .status.disconnected { color: #ff4444; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="camera-container">
+            <img class="camera-feed" id="camera" src="http://localhost:5000/" alt="Camera Feed">
+        </div>
+        
+        <div class="vitals-container">
+            <div class="box">
+                <div class="val" id="pulse">--</div>
+                <div class="label">Heart Rate (BPM)</div>
+            </div>
+            <div class="box">
+                <div class="val" id="breath">--</div>
+                <div class="label">Breathing (RPM)</div>
+            </div>
+        </div>
+        
+        <div class="status" id="status">Connecting...</div>
+    </div>
+
+    <script>
+        const statusEl = document.getElementById("status");
+        let ws;
+        
+        // Display state
+        let smoothedPulse = 0;
+        
+        const PULSE_ALPHA = 0.5;     // Pulse: moderate smoothing to reduce jitter
+        const MIN_PULSE = 30, MAX_PULSE = 200;
+        const MIN_BREATH = 2, MAX_BREATH = 60;
+        
+        function isValidPulse(v) { return v > 0 && v >= MIN_PULSE && v <= MAX_PULSE; }
+        function isValidBreathing(v) { return v > 0 && v >= MIN_BREATH && v <= MAX_BREATH; }
+        
+        function connect() {
+            ws = new WebSocket("ws://localhost:8765");
+            
+            ws.onopen = () => {
+                statusEl.textContent = "Connected";
+                statusEl.className = "status connected";
+            };
+            
+            ws.onclose = () => {
+                statusEl.textContent = "Disconnected - Reconnecting...";
+                statusEl.className = "status disconnected";
+                setTimeout(connect, 2000);
+            };
+            
+            ws.onerror = () => {
+                statusEl.textContent = "Connection error";
+                statusEl.className = "status disconnected";
+            };
+            
+            ws.onmessage = (e) => {
+                const data = JSON.parse(e.data);
+                
+                // Pulse: moderate smoothing
+                if (isValidPulse(data.pulse)) {
+                    if (smoothedPulse === 0) {
+                        smoothedPulse = data.pulse;
+                    } else {
+                        smoothedPulse = smoothedPulse * (1 - PULSE_ALPHA) + data.pulse * PULSE_ALPHA;
+                    }
+                    document.getElementById("pulse").innerText = Math.round(smoothedPulse);
+                }
+                
+                // Breathing: raw - no smoothing for maximum responsiveness
+                if (isValidBreathing(data.breathing)) {
+                    document.getElementById("breath").innerText = Math.round(data.breathing);
+                }
+            };
+        }
+        
+        connect();
+    </script>
+</body>
+</html>

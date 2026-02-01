@@ -91,13 +91,50 @@ DEFAULT_BASELINE = {
     "time_on_site": {"mean": 180.0, "std": 60.0}
 }
 
-# Placeholder biometrics (to be replaced with Presage SDK integration)
-# These produce neutral signals in behavior-only mode (minimal weight)
+# Placeholder biometrics (fallback when persage unavailable)
 DEFAULT_BIOMETRICS = {
     "heart_rate": 72.0,        # Match baseline mean for neutral Z-score
     "respiration_rate": 16.0,  # Match baseline mean for neutral Z-score
     "emotion_arousal": 0.5     # Neutral arousal level
 }
+
+PERSAGE_VITALS_URL = os.getenv("PERSAGE_VITALS_URL", "http://localhost:8766/vitals")
+
+
+async def get_current_biometrics() -> dict:
+    """Fetch real-time vitals from persage service for pipeline analysis."""
+    try:
+        async with httpx.AsyncClient(timeout=2.0) as client:
+            resp = await client.get(PERSAGE_VITALS_URL)
+            if resp.status_code == 200:
+                data = resp.json()
+                return {
+                    "heart_rate": float(data.get("heart_rate", 75.0)),
+                    "respiration_rate": float(data.get("respiration_rate", 16.0)),
+                    "emotion_arousal": DEFAULT_BIOMETRICS["emotion_arousal"],
+                }
+    except Exception as e:
+        print(f"[Vitals] Could not fetch from persage: {e}")
+    return DEFAULT_BIOMETRICS.copy()
+
+PERSAGE_VITALS_URL = os.getenv("PERSAGE_VITALS_URL", "http://localhost:8766/vitals")
+
+
+async def get_current_biometrics() -> dict:
+    """Fetch real-time vitals from persage service for pipeline analysis."""
+    try:
+        async with httpx.AsyncClient(timeout=2.0) as client:
+            resp = await client.get(PERSAGE_VITALS_URL)
+            if resp.status_code == 200:
+                data = resp.json()
+                return {
+                    "heart_rate": float(data.get("heart_rate", 75.0)),
+                    "respiration_rate": float(data.get("respiration_rate", 16.0)),
+                    "emotion_arousal": DEFAULT_BIOMETRICS["emotion_arousal"],
+                }
+    except Exception as e:
+        print(f"[Vitals] Could not fetch from persage: {e}")
+    return DEFAULT_BIOMETRICS.copy()
 
 # Initialize Fast Brain inference engine
 fast_brain = ImpulseInferenceEngine(baseline_data=DEFAULT_BASELINE, prior_p=0.2)
@@ -803,16 +840,13 @@ async def pipeline_analyze(request: PipelineRequest) -> PipelineResponse:
         Combined Fast Brain + Slow Brain analysis with intervention action
     """
     try:
-        # Step 1: Prepare Fast Brain input data
-        # Combine placeholder biometrics with real telemetry
-        click_rate_calculated = request.click_count / max(request.time_on_site, 1)
-        time_to_cart_value = request.time_to_cart if request.time_to_cart else request.time_on_site
-        
+        # Step 1: Fetch real vitals from persage (or fallback to defaults)
+        biometrics = await get_current_biometrics()
+        # Step 2: Prepare Fast Brain input data
         current_data = {
-            # Biometrics (placeholder - to be replaced with Presage SDK)
-            "heart_rate": DEFAULT_BIOMETRICS["heart_rate"],
-            "respiration_rate": DEFAULT_BIOMETRICS["respiration_rate"],
-            "emotion_arousal": DEFAULT_BIOMETRICS["emotion_arousal"],
+            "heart_rate": biometrics["heart_rate"],
+            "respiration_rate": biometrics["respiration_rate"],
+            "emotion_arousal": biometrics["emotion_arousal"],
             
             # Real telemetry from browser extension
             "click_rate": click_rate_calculated,  # clicks per second
@@ -820,31 +854,13 @@ async def pipeline_analyze(request: PipelineRequest) -> PipelineResponse:
             "time_to_cart": time_to_cart_value,
             "scroll_velocity_peak": request.peak_scroll_velocity,
             "system_hour": request.system_hour,
+            "system_time": request.system_hour,  # inference_engine expects this key
             
             # Website context
             "website_name": request.website
         }
         
-        # ============ DETAILED TELEMETRY LOGGING ============
-        print(f"\n{'='*60}")
-        print(f"[Pipeline] INCOMING TELEMETRY from extension:")
-        print(f"  Product: {request.product}")
-        print(f"  Cost: ${request.cost:.2f}")
-        print(f"  Website: {request.website}")
-        print(f"  ---")
-        print(f"  time_to_cart: {time_to_cart_value:.1f}s (raw: {request.time_to_cart})")
-        print(f"  time_on_site: {request.time_on_site:.1f}s")
-        print(f"  click_count: {request.click_count}")
-        print(f"  click_rate: {click_rate_calculated:.4f} clicks/sec")
-        print(f"  peak_scroll_velocity: {request.peak_scroll_velocity:.1f} px/s")
-        print(f"  system_hour: {request.system_hour}:00")
-        print(f"  ---")
-        print(f"  Using weight profile: {'BEHAVIOR_ONLY' if ImpulseInferenceEngine.USE_PLACEHOLDER_BIOMETRICS else 'FULL_BIOMETRIC'}")
-        print(f"  Active weights: {fast_brain.WEIGHTS}")
-        print(f"{'='*60}")
-        # ====================================================
-        
-        # Step 2: Run Fast Brain inference
+        # Step 3: Run Fast Brain inference
         p_impulse_fast = fast_brain.calculate_p_impulse(current_data)
         fast_intervention = fast_brain.get_intervention_level(p_impulse_fast)
         
@@ -866,7 +882,7 @@ async def pipeline_analyze(request: PipelineRequest) -> PipelineResponse:
             print(f"  Context factors: {logic_summary.get('context_factors', {})}")
         print(f"{'='*60}\n")
         
-        # Step 3: Run Slow Brain analysis
+        # Step 4: Run Slow Brain analysis
         if memory_engine:
             try:
                 purchase_dict = {
