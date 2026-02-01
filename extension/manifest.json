@@ -56,6 +56,7 @@
         "styles.css"
       ],
       "js": [
+        "tracker.js",
         "content.js"
       ]
     }
@@ -64,8 +65,7 @@
     {
       "resources": [
         "camera.html",
-        "gambling_sites.json",
-        "blocked_sites.json"
+        "gambling_sites.json"
       ],
       "matches": [
         "*://*.amazon.com/*",

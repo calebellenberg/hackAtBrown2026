@@ -2,20 +2,57 @@
 <html lang="en">
   <head>
     <style>
-      body { width: 250px; text-align: center; font-family: sans-serif; padding: 10px; }
-      button {
-        background-color: #4CAF50; color: white; padding: 10px 20px;
-        border: none; cursor: pointer; margin-top: 10px; width: 100%;
+      body {
+        width: 240px;
+        text-align: center;
+        font-family: sans-serif;
+        padding: 10px;
       }
-      #setup-btn { background-color: #2196F3; } /* Blue button */
+      button {
+        background-color: #4CAF50;
+        color: white;
+        padding: 10px 20px;
+        border: none;
+        cursor: pointer;
+        margin: 5px 0;
+        width: 100%;
+        border-radius: 4px;
+      }
+      button:hover {
+        background-color: #45a049;
+      }
+      .stats {
+        margin-top: 15px;
+        padding: 10px;
+        background-color: #f5f5f5;
+        border-radius: 4px;
+        text-align: left;
+        font-size: 12px;
+      }
+      .stats p {
+        margin: 5px 0;
+      }
+      .stats strong {
+        color: #d9534f;
+      }
     </style>
   </head>
   <body>
-    <h3>Amazon Blocker</h3>
-    <p>Blocker is active.</p>
+    <h3>Stop Shopping</h3>
+    <p>Click to read the page price (if present).</p>
+    <button id="get-price">Get Price</button>
+    <div id="price" style="margin-top:10px;font-weight:bold">—</div>
     
-    <button id="setup-btn">Grant Camera Permission</button>
+    <button id="get-stats">Get Tracker Stats</button>
+    <div id="stats" class="stats" style="display:none">
+      <p>⏱️ Time on Site: <strong id="time-on-site">—</strong></p>
+      <p>🛒 Cart Clicks: <strong id="cart-clicks">—</strong></p>
+      <p>📊 Cart Click Rate: <strong id="cart-rate">—</strong>/min</p>
+      <p>⏱️ Time-to-Cart: <strong id="ttc">—</strong></p>
+      <p>💰 Last Price: <strong id="last-price">—</strong></p>
+    </div>
     
+    <button id="setup-btn" style="background-color:#2196F3;margin-top:10px;">Camera Setup</button>
     <script src="popup.js"></script>
   </body>
 </html>
