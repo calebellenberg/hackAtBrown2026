@@ -1,57 +1,82 @@
+:root {
+    --stop-red: #e14b4b;
+}
+
 .stop-shopping-overlay {
     position: fixed;
     top: 0;
     left: 0;
     width: 100vw;
     height: 100vh;
-    background-color: rgba(0, 0, 0, 0.95); /* Darker background for focus */
+    background-color: rgba(0, 0, 0, 0.9);
     z-index: 2147483647;
     display: flex;
     justify-content: center;
     align-items: center;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    /* Flash the full-screen overlay to red periodically */
-    animation: flashRed 1s ease-in-out infinite;
+    font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    backdrop-filter: blur(4px) saturate(120%);
 }
 
 .lock-box {
-    background-color: #222;
-    padding: 40px;
-    border-radius: 10px;
+    background: linear-gradient(180deg, rgba(30,30,30,0.95), rgba(20,20,20,0.95));
+    padding: 48px;
+    border-radius: 14px;
     text-align: center;
-    color: white;
-    box-shadow: 0 0 20px rgba(255, 255, 255, 0.1);
-    max-width: 600px;
+    color: #f5f5f5;
+    font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    border: 2px solid color-mix(in srgb, var(--stop-red) 65%, transparent);
+    box-shadow:
+        0 18px 40px rgba(0,0,0,0.6),
+        0 6px 18px rgba(34,34,34,0.6),
+        0 0 36px color-mix(in srgb, var(--stop-red) 45%, transparent),
+        0 0 90px color-mix(in srgb, var(--stop-red) 28%, transparent),
+        0 0 140px color-mix(in srgb, var(--stop-red) 18%, transparent),
+        inset 0 1px 0 rgba(255,255,255,0.02);
+    max-width: 1050px;
+    width: 92%;
+    height: 90vh;
+    transform: translateY(0);
 }
 
 .lock-box h1 {
-    color: #ff4444;
-    font-size: 3rem;
-    margin: 0 0 20px 0;
+    color: var(--stop-red);
+    font-size: 2.7rem;
+    font-weight: 600;
+    margin: 0;
     text-transform: uppercase;
+    letter-spacing: 1px;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.6);
+    font-family: inherit;
 }
 
 .challenge-text {
-    font-size: 1.2rem;
-    font-weight: bold;
-    color: #4CAF50; /* Green text for the goal phrase */
-    background-color: #333;
-    padding: 10px;
-    border-radius: 5px;
-    margin: 20px 0;
-    user-select: none; /* Make it harder to highlight and drag-copy */
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: #b8f5c8;
+    background: rgba(40,40,40,0.45);
+    padding: 12px 14px;
+    border-radius: 8px;
+    margin: 0;
+    user-select: none;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.5);
 }
 
 #unlock-input {
     width: 100%;
-    padding: 15px;
+    padding: 14px 16px;
     font-size: 1rem;
-    border: 2px solid #555;
-    border-radius: 5px;
-    background-color: #111;
-    color: white;
+    font-weight: 500;
+    border: 2px solid rgba(255,255,255,0.28);
+    border-radius: 8px;
+    background-color: rgba(255,255,255,0.08);
+    color: #fff;
     outline: none;
-    box-sizing: border-box; /* Ensures padding doesn't break width */
+    box-sizing: border-box;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.6), inset 0 0 0 1px rgba(255,255,255,0.06);
+}
+
+#unlock-input::placeholder {
+    color: rgba(255,255,255,0.7);
 }
 
 #unlock-input:focus {
@@ -59,65 +84,55 @@
 }
 
 .lock-box {
-    /* Update the width to fit the video nicely */
-    background-color: #222;
-    padding: 40px;
-    border-radius: 10px;
-    text-align: center;
-    color: white;
-    box-shadow: 0 0 20px rgba(255, 255, 255, 0.1);
-    max-width: 600px;
-    width: 90%; /* Responsive width */
+    /* Responsive, centered content */
     display: flex;
     flex-direction: column;
     align-items: center;
+    gap: 18px;
 }
 
 .camera-container {
-    /* 1. Ensure it's a perfect square */
-    width: 220px;
-    height: 220px;
-    
-    /* 2. Center the container horizontally */
-    margin: 0 auto 25px auto;
-    
-    /* 3. Make it a circle and clip anything outside */
-    border-radius: 50%;
+    /* Red octagon stop sign frame with even border */
+    height: 100%;
+    aspect-ratio: 1 / 1;
+    width: auto;
+    max-height: 100%;
+    max-width: 100%;
+    margin: 0 auto;
+    position: relative;
+    background: var(--stop-red);
+    clip-path: polygon(30% 0%, 70% 0%, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0% 70%, 0% 30%);
+    -webkit-clip-path: polygon(30% 0%, 70% 0%, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0% 70%, 0% 30%);
+    box-shadow: 0 25px 60px rgba(0,0,0,0.7), 0 10px 25px rgba(0,0,0,0.5);
     overflow: hidden;
-    
-    border: 4px solid #ff4444;
-    background-color: #000;
-    box-shadow: 0 0 15px rgba(255, 68, 68, 0.5);
-    position: relative; /* Needed for absolute positioning the iframe */
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .camera-container iframe {
-    /* 4. Snap iframe perfectly to the edges of the container */
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
+    /* Video with even octagon border showing red background */
+    width: calc(100% - 30px);
+    height: calc(100% - 30px);
     border: none;
     display: block;
-    /* Remove default iframe background so it doesn't flash white */
-    background: transparent; 
+    background: #000;
+    clip-path: polygon(30% 0%, 70% 0%, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0% 70%, 0% 30%);
+    -webkit-clip-path: polygon(30% 0%, 70% 0%, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0% 70%, 0% 30%);
+    object-fit: cover;
+    transform: scaleX(-1);
+    box-shadow: inset 0 4px 15px rgba(0,0,0,0.6);
 }
 
 #self-reflection-cam {
     width: 100%;
     height: 100%;
-    object-fit: cover; /* Ensures video fills the circle without stretching */
-    transform: scaleX(-1); /* Mirror the video so it feels natural */
+    object-fit: cover;
+    transform: scaleX(-1);
 }
 
 /* Keyframes for the flashing red effect */
-@keyframes flashRed {
-    0%   { background-color: rgba(0, 0, 0, 0.95); }
-    45%  { background-color: rgba(255, 0, 0, 0.95); }
-    55%  { background-color: rgba(255, 0, 0, 0.95); }
-    100% { background-color: rgba(0, 0, 0, 0.95); }
-}
+
 
 /* Respect users who prefer reduced motion */
 @media (prefers-reduced-motion: reduce) {
