@@ -1,7 +1,7 @@
-// Service worker proxies backend requests so HTTPS pages can reach HTTP backend (WSL).
+// Service worker proxies backend requests so HTTPS pages can reach HTTP backend.
 // Content scripts are subject to mixed content; extension context is not.
-// If your WSL IP changes (e.g. after reboot), run "hostname -I" in WSL and update below.
-const BACKEND_URL = 'http://172.26.57.128:8000';
+// For macOS/Linux: use localhost. For WSL: use the WSL IP address (run "hostname -I" in WSL).
+const BACKEND_URL = 'http://localhost:8000';
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type !== 'pipeline-analyze') {
