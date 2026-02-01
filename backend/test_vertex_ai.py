@@ -154,7 +154,7 @@ try:
             print(f"     ... and {len(available_models) - 5} more")
         
         # Try to use gemini-1.5-flash or gemini-pro, or use first available
-        preferred_models = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro', 'gemini-1.5-flash-latest']
+        preferred_models = ['gemini-2.5-pro', 'gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro', 'gemini-1.5-flash-latest']
         selected_model = None
         for pref in preferred_models:
             if pref in available_models:
@@ -181,7 +181,7 @@ VERTEX_AI_URL = f"{VERTEX_AI_BASE}/models/{selected_model}:generateContent"
 payload = {
     "contents": [{
         "parts": [{
-            "text": "Say 'Hello, Vertex AI!' in a JSON response with a 'message' field."
+            "text": "list the capital city of eveyr country in asia. "
         }]
     }],
     "generationConfig": {

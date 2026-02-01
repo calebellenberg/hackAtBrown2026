@@ -26,7 +26,28 @@ class MemoryEngine:
     with service account authentication, and self-refining memory updates to Markdown files.
     """
     
-    SYSTEM_INSTRUCTION = """You are the user's 'Digital Prefrontal Cortex.' Evaluate purchases against their long-term goals and budget. Be rational, protective, and decisive."""
+    SYSTEM_INSTRUCTION = """You are the user's 'Digital Prefrontal Cortex' - a deliberate, context-aware reasoning system that OVERRIDES the Fast Brain's reflexive impulse assessment when the user's context warrants it.
+
+CRITICAL RESPONSIBILITIES:
+1. DO NOT simply accept the Fast Brain score. Independently evaluate based on context.
+2. INCREASE the impulse score (+0.1 to +0.4) when:
+   - Purchase violates budget limits
+   - Purchase conflicts with stated goals
+   - Purchase matches documented high-risk patterns (flash sales, gambling, late-night)
+   - Cost is disproportionate to typical spending
+3. DECREASE the impulse score (-0.1 to -0.4) when:
+   - Purchase aligns with stated goals
+   - Purchase is within budget and practical
+   - User has shown deliberate behavior (high time-to-cart, extended browsing)
+4. Always cite SPECIFIC constraints: exact dollar limits, specific goals, documented patterns.
+
+INTERVENTION THRESHOLDS (MANDATORY):
+- impulse_score < 0.30: Use "NONE"
+- impulse_score 0.30-0.60: Use "NONE" or "MIRROR"
+- impulse_score 0.60-0.85: Use "MIRROR" or "COOLDOWN"
+- impulse_score > 0.85: Use "COOLDOWN" or "PHRASE" (NEVER use NONE or MIRROR)
+
+You MUST adjust the Fast Brain score by at least ±0.05 based on context, unless the context fully supports the original score."""
 
     VERTEX_AI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
     
@@ -128,11 +149,11 @@ class MemoryEngine:
             "generationConfig": {"responseMimeType": "application/json"}
         }
         
-        # Exponential backoff: 1s, 2s, 4s, 8s, 16s (max 5 retries)
-        delays = [1, 2, 4, 8, 16]
+        # Exponential backoff: longer delays to avoid rate limiting (2s, 5s, 10s, 20s, 40s)
+        delays = [2, 5, 10, 20, 40]
         last_exception = None
         
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=60.0) as client:  # Increased timeout
             for attempt, delay in enumerate(delays):
                 try:
                     # Get OAuth2 access token
@@ -145,6 +166,13 @@ class MemoryEngine:
                     }
                     
                     response = await client.post(url, json=payload, headers=headers)
+                    
+                    # Handle 429 Too Many Requests with extended backoff
+                    if response.status_code == 429:
+                        retry_after = int(response.headers.get('Retry-After', delay * 2))
+                        print(f"Rate limited (429). Waiting {retry_after}s before retry...")
+                        await asyncio.sleep(retry_after)
+                        continue  # Retry the request
                     
                     # Check for specific error codes and provide helpful messages
                     if response.status_code == 403:
@@ -390,33 +418,51 @@ class MemoryEngine:
                 for s in context_snippets
             ])
             
-            # Build prompt
-            prompt = f"""Analyze this purchase decision:
+            # Build prompt with explicit adjustment requirements
+            prompt = f"""PURCHASE ANALYSIS REQUEST
 
-Fast Brain Impulse Score: {p_impulse_fast:.3f} (0.0 = no impulse, 1.0 = high impulse)
+## Fast Brain Assessment
+- Initial Impulse Score: {p_impulse_fast:.3f}
+- Note: This is a REFLEXIVE assessment. You MUST independently evaluate and ADJUST this score based on context.
 
-Purchase Details:
+## Purchase Details
 - Product: {purchase_data.get('product', 'Unknown')}
 - Cost: ${purchase_data.get('cost', 0):.2f}
 - Website: {purchase_data.get('website', 'Unknown')}
 
-Relevant Context from User's Memory:
+## User Context from Memory
 {context_text if context_snippets else "No relevant context found."}
 
-Please provide:
-1. A final impulse score (0.0-1.0) considering both the Fast Brain score and the context
-2. Your confidence in this assessment (0.0-1.0)
-3. A clear reasoning explanation citing specific goals, budget, state, or behavior patterns (e.g., "Violates your $0 gambling limit in Budget.md")
-4. An intervention action: "COOLDOWN", "MIRROR", "PHRASE", or "NONE"
-5. If this purchase reveals new information about the user, provide a memory_update as a markdown string (e.g., "User is willing to spend $60 on quality apparel"). If no update is needed, set memory_update to null.
+## YOUR TASK
 
-Respond in JSON format:
+1. **ADJUSTED IMPULSE SCORE** (0.0-1.0):
+   - You MUST adjust the Fast Brain score based on context
+   - Increase (+0.1 to +0.4) if: violates budget, conflicts with goals, matches high-risk patterns
+   - Decrease (-0.1 to -0.4) if: aligns with goals, within budget, shows deliberate decision-making
+   - Minimum adjustment: ±0.05 unless context fully supports original score
+
+2. **CONFIDENCE** (0.0-1.0): Your confidence in this assessment
+
+3. **REASONING**: Cite SPECIFIC values from user's memory:
+   - "This $X violates your $Y/month budget for Z category"
+   - "This conflicts with your goal to save $X for Y"
+   - "This matches your documented pattern of Z"
+
+4. **INTERVENTION ACTION** (MANDATORY thresholds):
+   - Score < 0.30 → "NONE"
+   - Score 0.30-0.60 → "NONE" or "MIRROR"
+   - Score 0.60-0.85 → "MIRROR" or "COOLDOWN"
+   - Score > 0.85 → "COOLDOWN" or "PHRASE" (REQUIRED - never NONE/MIRROR)
+
+5. **MEMORY UPDATE** (or null): New behavioral patterns observed
+
+## RESPONSE FORMAT (JSON only):
 {{
-    "impulse_score": <float>,
+    "impulse_score": <float - your ADJUSTED score>,
     "confidence": <float>,
-    "reasoning": "<explanation>",
-    "intervention_action": "<COOLDOWN|MIRROR|PHRASE|NONE>",
-    "memory_update": "<markdown string or null>"
+    "reasoning": "<explanation with SPECIFIC values cited>",
+    "intervention_action": "<based on thresholds above>",
+    "memory_update": "<new pattern or null>"
 }}"""
             
             # Call Vertex AI API
