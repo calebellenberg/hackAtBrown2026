@@ -5,11 +5,15 @@ Provides endpoints for purchase analysis and memory synchronization.
 """
 
 import os
-from typing import Optional
+import json
+from typing import Optional, List, Any
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
+import httpx
+from google.oauth2 import service_account
+import google.auth.transport.requests
 
 from memory import MemoryEngine
 
@@ -40,21 +44,30 @@ MEMORY_DIR = os.path.join(os.path.dirname(__file__), "memory_store")
 CHROMA_DIR = os.path.join(os.path.dirname(__file__), "memory_store")
 VERTEX_SERVICE_ACCOUNT_PATH = os.getenv("VERTEX_SERVICE_ACCOUNT_PATH")
 
-if not VERTEX_SERVICE_ACCOUNT_PATH:
-    raise ValueError("VERTEX_SERVICE_ACCOUNT_PATH environment variable is required")
+# Make service account path optional - will use fallback if not set
+if VERTEX_SERVICE_ACCOUNT_PATH:
+    # Resolve relative paths to absolute
+    if not os.path.isabs(VERTEX_SERVICE_ACCOUNT_PATH):
+        VERTEX_SERVICE_ACCOUNT_PATH = os.path.join(
+            os.path.dirname(__file__),
+            VERTEX_SERVICE_ACCOUNT_PATH
+        )
+    print(f"Using service account: {VERTEX_SERVICE_ACCOUNT_PATH}")
+else:
+    print("WARNING: VERTEX_SERVICE_ACCOUNT_PATH not set. Gemini API will use fallback mode.")
 
-# Resolve relative paths to absolute
-if not os.path.isabs(VERTEX_SERVICE_ACCOUNT_PATH):
-    VERTEX_SERVICE_ACCOUNT_PATH = os.path.join(
-        os.path.dirname(__file__),
-        VERTEX_SERVICE_ACCOUNT_PATH
-    )
-
-memory_engine = MemoryEngine(
-    memory_dir=MEMORY_DIR,
-    chroma_persist_dir=CHROMA_DIR,
-    service_account_path=VERTEX_SERVICE_ACCOUNT_PATH
-)
+# Initialize Memory Engine only if service account is available
+memory_engine = None
+if VERTEX_SERVICE_ACCOUNT_PATH and os.path.exists(VERTEX_SERVICE_ACCOUNT_PATH):
+    try:
+        memory_engine = MemoryEngine(
+            memory_dir=MEMORY_DIR,
+            chroma_persist_dir=CHROMA_DIR,
+            service_account_path=VERTEX_SERVICE_ACCOUNT_PATH
+        )
+        print("Memory engine initialized successfully")
+    except Exception as e:
+        print(f"Warning: Could not initialize memory engine: {e}")
 
 
 # Request/Response Models
@@ -84,11 +97,14 @@ class SyncMemoryResponse(BaseModel):
 @app.on_event("startup")
 async def startup_event():
     """Initialize memory index on startup."""
-    try:
-        await memory_engine.reindex_memory()
-        print("Memory index initialized successfully")
-    except Exception as e:
-        print(f"Warning: Could not initialize memory index: {e}")
+    if memory_engine:
+        try:
+            await memory_engine.reindex_memory()
+            print("Memory index initialized successfully")
+        except Exception as e:
+            print(f"Warning: Could not initialize memory index: {e}")
+    else:
+        print("Memory engine not available - skipping reindex")
 
 
 @app.get("/")
@@ -97,7 +113,8 @@ async def root():
     return {
         "message": "ImpulseGuard Slow Brain API",
         "version": "1.0.0",
-        "endpoints": ["/analyze", "/sync-memory"]
+        "endpoints": ["/analyze", "/sync-memory", "/gemini-analyze"],
+        "gemini_available": gemini_client is not None
     }
 
 
@@ -118,6 +135,15 @@ async def analyze_purchase(request: AnalyzeRequest) -> AnalyzeResponse:
     Returns:
         Analysis response with impulse score, reasoning, intervention action, and optional memory_update
     """
+    if not memory_engine:
+        return AnalyzeResponse(
+            impulse_score=request.p_impulse_fast,
+            confidence=0.3,
+            reasoning="Memory engine not available. Using Fast Brain score only.",
+            intervention_action="NONE",
+            memory_update=None
+        )
+    
     try:
         # Convert to purchase data dict
         purchase_dict = {
@@ -170,6 +196,12 @@ async def sync_memory() -> SyncMemoryResponse:
     Raises:
         HTTPException: If reindexing fails
     """
+    if not memory_engine:
+        return SyncMemoryResponse(
+            status="skipped",
+            files_indexed=0
+        )
+    
     try:
         success = await memory_engine.reindex_memory()
         
@@ -202,9 +234,250 @@ async def health_check():
     """Health check endpoint."""
     return {
         "status": "healthy",
-        "memory_indexed": memory_engine._indexed,
-        "chroma_collection_count": memory_engine.collection.count() if memory_engine._indexed else 0
+        "memory_indexed": memory_engine._indexed if memory_engine else False,
+        "chroma_collection_count": memory_engine.collection.count() if memory_engine and memory_engine._indexed else 0,
+        "gemini_available": gemini_client is not None
     }
+
+
+# ===================== GEMINI ANALYSIS ENDPOINT =====================
+
+class PurchaseAttempt(BaseModel):
+    """Single purchase attempt data from extension."""
+    id: Optional[str] = None
+    timestamp: Optional[str] = None
+    actionType: str = Field(..., description="'add_to_cart' or 'buy_now'")
+    domain: Optional[str] = None
+    pageUrl: Optional[str] = None
+    productName: Optional[str] = None
+    priceRaw: Optional[str] = None
+    priceValue: Optional[float] = None
+    timeToCart: Optional[float] = None
+    timeOnSite: Optional[float] = None
+    clickCount: Optional[int] = None
+    cartClickCount: Optional[int] = None
+    peakScrollVelocity: Optional[float] = None
+
+
+class GeminiAnalyzeRequest(BaseModel):
+    """Request model for /gemini-analyze endpoint."""
+    current_purchase: PurchaseAttempt = Field(..., description="Current purchase being attempted")
+    purchase_history: Optional[List[PurchaseAttempt]] = Field(default=[], description="Recent purchase history")
+    preferences: Optional[dict] = Field(default={}, description="User preferences (budget, threshold, sensitivity)")
+
+
+class GeminiAnalyzeResponse(BaseModel):
+    """Response model for /gemini-analyze endpoint."""
+    risk_level: str = Field(..., description="LOW, MEDIUM, HIGH, or CRITICAL")
+    risk_score: int = Field(..., ge=0, le=100, description="Risk score 0-100")
+    should_intervene: bool = Field(..., description="Whether to show intervention")
+    intervention_type: str = Field(..., description="NONE, GENTLE_REMINDER, COOL_DOWN, or STRICT_BLOCK")
+    reasoning: str = Field(..., description="Why this is or isn't impulsive")
+    recommendations: List[str] = Field(..., description="Actionable recommendations")
+    personalized_message: str = Field(..., description="Message to show the user")
+
+
+class GeminiClient:
+    """Client for calling Gemini API."""
+    
+    VERTEX_AI_BASE = "https://generativelanguage.googleapis.com/v1beta"
+    MODEL = "gemini-1.5-flash"
+    
+    def __init__(self, service_account_path: str):
+        self.service_account_path = service_account_path
+        self.credentials = None
+        self.access_token = None
+        self._setup_credentials()
+    
+    def _setup_credentials(self):
+        """Load service account credentials."""
+        if not os.path.exists(self.service_account_path):
+            raise FileNotFoundError(f"Service account not found: {self.service_account_path}")
+        
+        self.credentials = service_account.Credentials.from_service_account_file(
+            self.service_account_path,
+            scopes=['https://www.googleapis.com/auth/generative-language']
+        )
+        self._refresh_token()
+    
+    def _refresh_token(self):
+        """Refresh the access token."""
+        request = google.auth.transport.requests.Request()
+        if not self.credentials.valid:
+            self.credentials.refresh(request)
+        self.access_token = self.credentials.token
+    
+    async def analyze(self, prompt: str) -> dict:
+        """Send prompt to Gemini and get response."""
+        self._refresh_token()
+        
+        url = f"{self.VERTEX_AI_BASE}/models/{self.MODEL}:generateContent"
+        
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {
+                "responseMimeType": "application/json",
+                "temperature": 0.7
+            }
+        }
+        
+        headers = {
+            'Authorization': f'Bearer {self.access_token}',
+            'Content-Type': 'application/json'
+        }
+        
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(url, json=payload, headers=headers)
+            response.raise_for_status()
+            result = response.json()
+        
+        if 'candidates' in result and len(result['candidates']) > 0:
+            text = result['candidates'][0]['content']['parts'][0].get('text', '')
+            try:
+                return json.loads(text)
+            except json.JSONDecodeError:
+                return {"error": "Failed to parse Gemini response", "raw": text}
+        
+        return {"error": "No response from Gemini"}
+
+
+# Initialize Gemini client
+gemini_client = None
+try:
+    gemini_client = GeminiClient(VERTEX_SERVICE_ACCOUNT_PATH)
+    print("Gemini client initialized successfully")
+except Exception as e:
+    print(f"Warning: Could not initialize Gemini client: {e}")
+
+
+def build_gemini_prompt(request: GeminiAnalyzeRequest) -> str:
+    """Build the prompt for Gemini analysis."""
+    current = request.current_purchase
+    history = request.purchase_history or []
+    prefs = request.preferences or {}
+    
+    # Calculate history stats
+    total_spent = sum(p.priceValue or 0 for p in history)
+    avg_time_to_cart = sum(p.timeToCart or 0 for p in history if p.timeToCart) / max(len([p for p in history if p.timeToCart]), 1)
+    
+    prompt = f"""You are a behavioral finance AI that detects impulse purchases in real-time.
+
+A user just clicked "{current.actionType.upper().replace('_', ' ')}" on a shopping website. Analyze if this is an impulse purchase.
+
+## Current Purchase Attempt
+- Product: {current.productName or 'Unknown'}
+- Price: {current.priceRaw or f'${current.priceValue}' if current.priceValue else 'Unknown'}
+- Website: {current.domain or 'Unknown'}
+- Time to Cart: {current.timeToCart:.1f}s (how fast they clicked)
+- Time on Site: {current.timeOnSite:.1f}s
+- Click Count: {current.clickCount or 0}
+- Scroll Velocity: {current.peakScrollVelocity or 0:.1f}
+
+## User Preferences  
+- Monthly Budget: ${prefs.get('budget', 'Not set')}
+- Impulse Threshold: ${prefs.get('threshold', 'Not set')}
+- Sensitivity: {prefs.get('sensitivity', 'medium')}
+
+## Recent History (last {len(history)} attempts)
+- Total attempted spending: ${total_spent:.2f}
+- Average time-to-cart: {avg_time_to_cart:.1f}s
+- Recent products: {', '.join([p.productName or 'Unknown' for p in history[-5:]])}
+
+## Impulse Buying Indicators
+Consider these red flags:
+1. Very short time-to-cart (<30 seconds) = impulsive
+2. High scroll velocity = rushed browsing
+3. Price exceeds threshold or strains budget
+4. Multiple purchases in short time
+5. Late night shopping (emotional buying)
+6. High-ticket items with no research time
+
+## Analysis Request
+Determine if this purchase is impulsive and what intervention (if any) to show.
+
+Respond in this exact JSON format:
+{{
+    "risk_level": "LOW|MEDIUM|HIGH|CRITICAL",
+    "risk_score": 0-100,
+    "should_intervene": true/false,
+    "intervention_type": "NONE|GENTLE_REMINDER|COOL_DOWN|STRICT_BLOCK",
+    "reasoning": "Brief explanation of why this is/isn't impulsive",
+    "recommendations": ["tip 1", "tip 2", "tip 3"],
+    "personalized_message": "A short, friendly message to show the user"
+}}
+
+IMPORTANT: 
+- risk_score < 30 = LOW, no intervention needed
+- risk_score 30-60 = MEDIUM, gentle reminder
+- risk_score 60-80 = HIGH, suggest cooling off
+- risk_score > 80 = CRITICAL, strongly discourage
+"""
+    return prompt
+
+
+@app.post("/gemini-analyze", response_model=GeminiAnalyzeResponse)
+async def gemini_analyze_purchase(request: GeminiAnalyzeRequest) -> GeminiAnalyzeResponse:
+    """
+    Analyze a purchase attempt using Gemini AI.
+    
+    This endpoint receives real-time data from the extension when a user
+    clicks Add to Cart or Buy Now, and returns an AI-powered analysis.
+    """
+    if not gemini_client:
+        # Fallback response if Gemini not available
+        return GeminiAnalyzeResponse(
+            risk_level="MEDIUM",
+            risk_score=50,
+            should_intervene=True,
+            intervention_type="GENTLE_REMINDER",
+            reasoning="AI analysis unavailable. Defaulting to gentle reminder.",
+            recommendations=["Take a moment to consider if you really need this item."],
+            personalized_message="Gemini AI is not configured. Please check your service account."
+        )
+    
+    try:
+        prompt = build_gemini_prompt(request)
+        result = await gemini_client.analyze(prompt)
+        
+        if "error" in result:
+            raise ValueError(result.get("error", "Unknown Gemini error"))
+        
+        return GeminiAnalyzeResponse(
+            risk_level=result.get("risk_level", "MEDIUM"),
+            risk_score=result.get("risk_score", 50),
+            should_intervene=result.get("should_intervene", True),
+            intervention_type=result.get("intervention_type", "GENTLE_REMINDER"),
+            reasoning=result.get("reasoning", "Unable to determine reasoning."),
+            recommendations=result.get("recommendations", []),
+            personalized_message=result.get("personalized_message", "")
+        )
+        
+    except Exception as e:
+        print(f"Error in gemini_analyze_purchase: {e}")
+        
+        # Fallback based on quick heuristics
+        current = request.current_purchase
+        risk_score = 50
+        
+        # Quick heuristic scoring
+        if current.timeToCart and current.timeToCart < 30:
+            risk_score += 20
+        if current.priceValue and current.priceValue > 100:
+            risk_score += 15
+        if current.peakScrollVelocity and current.peakScrollVelocity > 1000:
+            risk_score += 10
+        
+        risk_score = min(100, risk_score)
+        
+        return GeminiAnalyzeResponse(
+            risk_level="HIGH" if risk_score > 60 else "MEDIUM",
+            risk_score=risk_score,
+            should_intervene=risk_score > 40,
+            intervention_type="COOL_DOWN" if risk_score > 60 else "GENTLE_REMINDER",
+            reasoning=f"AI unavailable. Using heuristics: fast checkout detected. Error: {str(e)}",
+            recommendations=["Take a deep breath", "Consider waiting 24 hours"],
+            personalized_message="Let's pause and think about this purchase."
+        )
 
 
 if __name__ == "__main__":

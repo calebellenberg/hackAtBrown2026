@@ -107,27 +107,40 @@ def analyze_purchase_attempt(engine: ImpulseInferenceEngine, purchase: dict, use
     # Convert to engine format
     engine_input = convert_extension_data_to_engine_format(purchase, user_prefs)
     
-    # Calculate impulse probability
-    result = engine.calculate(
-        heart_rate=engine_input['heart_rate'],
-        respiration_rate=engine_input['respiration_rate'],
-        scroll_velocity=engine_input['scroll_velocity'],
-        emotion_arousal=engine_input['emotion_arousal'],
-        click_rate=engine_input['click_rate'],
-        time_to_cart=engine_input['time_to_cart'],
-        website_type=engine_input['website_type'],
-        time_of_day=engine_input['time_of_day'],
-        baseline_heart_rate=engine_input['baseline_heart_rate'],
-        baseline_respiration=engine_input['baseline_respiration'],
-        baseline_scroll_velocity=engine_input['baseline_scroll_velocity'],
-        baseline_click_rate=engine_input['baseline_click_rate']
-    )
+    # Build current_data dict for the engine
+    current_data = {
+        'heart_rate': engine_input['heart_rate'],
+        'respiration_rate': engine_input['respiration_rate'],
+        'scroll_velocity_peak': engine_input['scroll_velocity'],
+        'emotion_arousal': engine_input['emotion_arousal'],
+        'click_rate': engine_input['click_rate'],
+        'time_to_cart': engine_input['time_to_cart'],
+        'time_on_website': purchase.get('timeOnSite', 60),
+        'system_time': engine_input['time_of_day'],
+        'website_name': purchase.get('domain', '')
+    }
     
-    # Add context from purchase
-    result['product_name'] = engine_input['product_name']
-    result['price'] = engine_input['price']
-    result['action_type'] = engine_input['action_type']
-    result['domain'] = purchase.get('domain', 'unknown')
+    # Calculate impulse probability
+    impulse_prob = engine.calculate_p_impulse(current_data)
+    
+    # Determine intervention level
+    if impulse_prob < 0.3:
+        intervention = 'NONE'
+    elif impulse_prob < 0.6:
+        intervention = 'NUDGE'
+    elif impulse_prob < 0.8:
+        intervention = 'CHALLENGE'
+    else:
+        intervention = 'LOCKOUT'
+    
+    result = {
+        'impulse_probability': impulse_prob,
+        'intervention_level': intervention,
+        'product_name': engine_input['product_name'],
+        'price': engine_input['price'],
+        'action_type': engine_input['action_type'],
+        'domain': purchase.get('domain', 'unknown')
+    }
     
     # Check against user budget/threshold
     if user_prefs:
@@ -205,8 +218,17 @@ def test_with_sample_data():
         "sensitivity": "medium"
     }
     
-    # Initialize engine
-    engine = ImpulseInferenceEngine()
+    # Default baseline data for the engine
+    baseline_data = {
+        "heart_rate": {"mean": 70.0, "std": 8.0},
+        "respiration_rate": {"mean": 14.0, "std": 2.0},
+        "scroll_velocity": {"mean": 500.0, "std": 300.0},
+        "click_rate": {"mean": 0.5, "std": 0.3},
+        "time_on_site": {"mean": 120.0, "std": 60.0}
+    }
+    
+    # Initialize engine with baseline data
+    engine = ImpulseInferenceEngine(baseline_data)
     
     print("=" * 70)
     print("STOP SHOPPING - IMPULSE BUY ANALYSIS")
@@ -246,7 +268,17 @@ def test_with_file(filepath: str):
     """Test with exported JSON file from extension."""
     
     data = load_extension_data(filepath)
-    engine = ImpulseInferenceEngine()
+    
+    # Default baseline data for the engine
+    baseline_data = {
+        "heart_rate": {"mean": 70.0, "std": 8.0},
+        "respiration_rate": {"mean": 14.0, "std": 2.0},
+        "scroll_velocity": {"mean": 500.0, "std": 300.0},
+        "click_rate": {"mean": 0.5, "std": 0.3},
+        "time_on_site": {"mean": 120.0, "std": 60.0}
+    }
+    
+    engine = ImpulseInferenceEngine(baseline_data)
     
     user_prefs = data.get('userPreferences')
     purchases = data.get('allPurchaseAttempts', [])

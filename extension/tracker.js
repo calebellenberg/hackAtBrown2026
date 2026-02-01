@@ -394,13 +394,20 @@
                     cartClickCount: cartClickCount,
                     cartClickRate: parseFloat(cartClickRate.toFixed(2)),
                     
-                    // Scroll behavior
+                    // Scroll behavior  
                     peakScrollVelocity: parseFloat(peakScrollVelocity.toFixed(2)),
                     
                     // Navigation
                     navigationPathLength: navPath.length,
                     navigationPath: navPath.slice(-10) // Last 10 pages to avoid huge data
                 };
+                
+                // Check if chrome.storage is available
+                if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) {
+                    console.log('[Tracker] chrome.storage not available, sending to API only');
+                    sendToGeminiAPI(summary, []);
+                    return summary;
+                }
                 
                 // Determine storage key based on action type
                 const storageKey = actionType === 'buy_now' ? 'buy_now_history' : 'add_to_cart_history';
@@ -426,6 +433,9 @@
                         console.log(`[Tracker] ${actionType.toUpperCase()} summary saved to storage:`, summary);
                         console.log(`[Tracker] ${storageKey} entries:`, trimmedSpecific.length);
                         console.log(`[Tracker] all_purchase_attempts entries:`, trimmedAll.length);
+                        
+                        // Send to Gemini API for real-time analysis
+                        sendToGeminiAPI(summary, trimmedAll.slice(-10));
                     });
                 });
                 
@@ -435,6 +445,127 @@
                 return null;
             }
         }
+        
+        // ===================== GEMINI API INTEGRATION =====================
+        const BACKEND_URL = 'http://localhost:8000';
+        
+        async function sendToGeminiAPI(currentPurchase, recentHistory) {
+            try {
+                console.log('[Tracker] 🚀 Sending purchase data to Gemini API...');
+                
+                // Get user preferences from localStorage
+                let preferences = {};
+                try {
+                    const prefsStr = localStorage.getItem('stop_shopping_preferences');
+                    if (prefsStr) {
+                        preferences = JSON.parse(prefsStr);
+                    }
+                } catch (e) {
+                    console.warn('[Tracker] Could not load preferences:', e);
+                }
+                
+                const requestBody = {
+                    current_purchase: {
+                        id: currentPurchase.id,
+                        timestamp: currentPurchase.timestamp,
+                        actionType: currentPurchase.actionType,
+                        domain: currentPurchase.domain,
+                        pageUrl: currentPurchase.pageUrl,
+                        productName: currentPurchase.productName,
+                        priceRaw: currentPurchase.priceRaw,
+                        priceValue: currentPurchase.priceValue,
+                        timeToCart: currentPurchase.timeToCart,
+                        timeOnSite: currentPurchase.timeOnSite,
+                        clickCount: currentPurchase.clickCount,
+                        cartClickCount: currentPurchase.cartClickCount,
+                        peakScrollVelocity: currentPurchase.peakScrollVelocity
+                    },
+                    purchase_history: recentHistory.map(p => ({
+                        id: p.id,
+                        timestamp: p.timestamp,
+                        actionType: p.actionType,
+                        domain: p.domain,
+                        productName: p.productName,
+                        priceRaw: p.priceRaw,
+                        priceValue: p.priceValue,
+                        timeToCart: p.timeToCart,
+                        timeOnSite: p.timeOnSite
+                    })),
+                    preferences: preferences
+                };
+                
+                console.log('[Tracker] Request body:', requestBody);
+                
+                const response = await fetch(`${BACKEND_URL}/gemini-analyze`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const result = await response.json();
+                
+                console.log('[Tracker] 🧠 GEMINI ANALYSIS RESULT:');
+                console.log('━'.repeat(50));
+                console.log(`Risk Level: ${result.risk_level} (${result.risk_score}/100)`);
+                console.log(`Should Intervene: ${result.should_intervene}`);
+                console.log(`Intervention Type: ${result.intervention_type}`);
+                console.log(`Reasoning: ${result.reasoning}`);
+                console.log(`Message: ${result.personalized_message}`);
+                console.log('Recommendations:', result.recommendations);
+                console.log('━'.repeat(50));
+                
+                // Dispatch event so content.js can show appropriate overlay
+                window.dispatchEvent(new CustomEvent('gemini-analysis-result', {
+                    detail: result
+                }));
+                
+                // Also save the analysis result (if chrome.storage is available)
+                if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+                    chrome.storage.local.get(['gemini_analyses'], (data) => {
+                        const analyses = data.gemini_analyses || [];
+                        analyses.push({
+                            timestamp: new Date().toISOString(),
+                            purchase: currentPurchase.productName,
+                            result: result
+                        });
+                        chrome.storage.local.set({ 
+                            gemini_analyses: analyses.slice(-50),
+                            last_gemini_result: result
+                        });
+                    });
+                }
+                
+                return result;
+                
+            } catch (error) {
+                console.error('[Tracker] ❌ Failed to send to Gemini API:', error);
+                console.log('[Tracker] Make sure the backend is running: cd backend && uvicorn app:app --reload');
+                
+                // Dispatch a fallback result
+                window.dispatchEvent(new CustomEvent('gemini-analysis-result', {
+                    detail: {
+                        risk_level: 'UNKNOWN',
+                        risk_score: 50,
+                        should_intervene: true,
+                        intervention_type: 'GENTLE_REMINDER',
+                        reasoning: 'Could not connect to AI backend.',
+                        recommendations: ['Take a moment to reflect on this purchase.'],
+                        personalized_message: 'Backend unavailable. Please take a moment to consider this purchase.',
+                        error: error.message
+                    }
+                }));
+                
+                return null;
+            }
+        }
+        
+        // ===================== END GEMINI API INTEGRATION =====================
         
         // Listen for cart click events from content.js (this is the primary source of cart click data)
         window.addEventListener('stop-shopping-cart-click', (ev) => {
@@ -466,20 +597,12 @@
                     const now = performance.now();
                     ttcRecorded = (now - pageLoadTime) / 1000;
                     const timeOnSite = (now - pageLoadTime) / 1000;
-<<<<<<< HEAD
-                    console.log(`[Tracker] ⚠️ ADD-TO-CART DETECTED (via content.js)`);
-                    console.log(`[Tracker] Time-to-Cart (TTC): ${ttcRecorded.toFixed(2)}s`);
-                    console.log(`[Tracker] Time on Site: ${timeOnSite.toFixed(2)}s`);
-                    console.log(`[Tracker] Price (raw): ${priceRecorded?.raw || 'N/A'}`);
-                    console.log(`[Tracker] Price (value): ${priceRecorded?.value ? `$${priceRecorded.value.toFixed(2)}` : 'N/A'}`);
-=======
                     console.warn(`[Tracker] ⚠️ ADD-TO-CART DETECTED (via content.js)`);
                     console.warn(`[Tracker] Product: ${productNameRecorded || 'N/A'}`);
                     console.warn(`[Tracker] Time-to-Cart (TTC): ${ttcRecorded.toFixed(2)}s`);
                     console.warn(`[Tracker] Time on Site: ${timeOnSite.toFixed(2)}s`);
                     console.warn(`[Tracker] Price (raw): ${priceRecorded?.raw || 'N/A'}`);
                     console.warn(`[Tracker] Price (value): ${priceRecorded?.value ? `$${priceRecorded.value.toFixed(2)}` : 'N/A'}`);
->>>>>>> 4dd1cdc (data json)
                 }
                 
                 // Determine action type based on button text if available
@@ -643,30 +766,36 @@
             // Print saved cart click history JSON
             console.log('---');
             console.log('📦 SAVED PURCHASE HISTORY (JSON):');
-            chrome.storage.local.get(['add_to_cart_history', 'buy_now_history', 'all_purchase_attempts'], (result) => {
-                const addToCartHistory = result.add_to_cart_history || [];
-                const buyNowHistory = result.buy_now_history || [];
-                const allHistory = result.all_purchase_attempts || [];
-                
-                console.log('🛒 Add to Cart entries:', addToCartHistory.length);
-                if (addToCartHistory.length > 0) {
-                    console.log('ADD_TO_CART_JSON:', JSON.stringify(addToCartHistory, null, 2));
-                }
-                
-                console.log('💳 Buy Now entries:', buyNowHistory.length);
-                if (buyNowHistory.length > 0) {
-                    console.log('BUY_NOW_JSON:', JSON.stringify(buyNowHistory, null, 2));
-                }
-                
-                console.log('📊 All Purchase Attempts:', allHistory.length);
-                if (allHistory.length > 0) {
-                    console.log('ALL_PURCHASES_JSON:', JSON.stringify(allHistory, null, 2));
-                }
-                
-                if (addToCartHistory.length === 0 && buyNowHistory.length === 0) {
-                    console.log('No purchase attempts saved yet.');
-                }
-            });
+            
+            // Check if chrome.storage is available (extension context only)
+            if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+                chrome.storage.local.get(['add_to_cart_history', 'buy_now_history', 'all_purchase_attempts'], (result) => {
+                    const addToCartHistory = result.add_to_cart_history || [];
+                    const buyNowHistory = result.buy_now_history || [];
+                    const allHistory = result.all_purchase_attempts || [];
+                    
+                    console.log('🛒 Add to Cart entries:', addToCartHistory.length);
+                    if (addToCartHistory.length > 0) {
+                        console.log('ADD_TO_CART_JSON:', JSON.stringify(addToCartHistory, null, 2));
+                    }
+                    
+                    console.log('💳 Buy Now entries:', buyNowHistory.length);
+                    if (buyNowHistory.length > 0) {
+                        console.log('BUY_NOW_JSON:', JSON.stringify(buyNowHistory, null, 2));
+                    }
+                    
+                    console.log('📊 All Purchase Attempts:', allHistory.length);
+                    if (allHistory.length > 0) {
+                        console.log('ALL_PURCHASES_JSON:', JSON.stringify(allHistory, null, 2));
+                    }
+                    
+                    if (addToCartHistory.length === 0 && buyNowHistory.length === 0) {
+                        console.log('No purchase attempts saved yet.');
+                    }
+                });
+            } else {
+                console.log('chrome.storage not available (not in extension context)');
+            }
             
             console.groupEnd();
         }, 10000);
