@@ -16,6 +16,7 @@ from google.oauth2 import service_account
 import google.auth.transport.requests
 
 from memory import MemoryEngine
+from inference_engine import ImpulseInferenceEngine
 
 # Load environment variables from .env file
 # Look for .env in the backend directory
@@ -69,6 +70,26 @@ if VERTEX_SERVICE_ACCOUNT_PATH and os.path.exists(VERTEX_SERVICE_ACCOUNT_PATH):
     except Exception as e:
         print(f"Warning: Could not initialize memory engine: {e}")
 
+# Default baseline for users without calibration (used by Fast Brain)
+DEFAULT_BASELINE = {
+    "heart_rate": {"mean": 72.0, "std": 10.0},
+    "respiration_rate": {"mean": 16.0, "std": 3.0},
+    "scroll_velocity": {"mean": 50.0, "std": 20.0},
+    "click_rate": {"mean": 2.0, "std": 1.0},
+    "time_on_site": {"mean": 180.0, "std": 60.0}
+}
+
+# Placeholder biometrics (to be replaced with Presage SDK integration)
+DEFAULT_BIOMETRICS = {
+    "heart_rate": 75.0,
+    "respiration_rate": 16.0,
+    "emotion_arousal": 0.5
+}
+
+# Initialize Fast Brain inference engine
+fast_brain = ImpulseInferenceEngine(baseline_data=DEFAULT_BASELINE, prior_p=0.2)
+print("Fast Brain inference engine initialized successfully")
+
 
 # Request/Response Models
 class AnalyzeRequest(BaseModel):
@@ -94,6 +115,36 @@ class SyncMemoryResponse(BaseModel):
     files_indexed: int = Field(..., ge=0, description="Number of files indexed")
 
 
+class PipelineRequest(BaseModel):
+    """Request model for /pipeline-analyze endpoint - integrates Fast Brain + Slow Brain."""
+    # Purchase data
+    product: str = Field(..., description="Product name")
+    cost: float = Field(..., ge=0, description="Purchase cost in dollars")
+    website: str = Field(..., description="Website domain")
+    
+    # Telemetry from tracker.js
+    time_to_cart: Optional[float] = Field(None, description="Time from page load to cart click (seconds)")
+    time_on_site: float = Field(..., description="Total time on site (seconds)")
+    click_count: int = Field(default=0, description="Total clicks on page")
+    peak_scroll_velocity: float = Field(default=0.0, description="Peak scroll velocity (px/s)")
+    system_hour: int = Field(..., ge=0, le=23, description="Hour of day (0-23)")
+
+
+class PipelineResponse(BaseModel):
+    """Response model for /pipeline-analyze endpoint."""
+    # Fast Brain output
+    p_impulse_fast: float = Field(..., ge=0.0, le=1.0, description="Fast Brain probability score")
+    fast_brain_intervention: str = Field(..., description="Fast Brain intervention level")
+    fast_brain_dominant_trigger: str = Field(..., description="Which input most influenced the Fast Brain score")
+    
+    # Slow Brain output
+    impulse_score: float = Field(..., ge=0.0, le=1.0, description="Final impulse score after Slow Brain reasoning")
+    confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence in the assessment")
+    reasoning: str = Field(..., description="Explanation citing specific goals/budget")
+    intervention_action: str = Field(..., description="COOLDOWN, MIRROR, PHRASE, or NONE")
+    memory_update: Optional[str] = Field(None, description="Memory update if patterns detected")
+
+
 @app.on_event("startup")
 async def startup_event():
     """Initialize memory index on startup."""
@@ -111,10 +162,11 @@ async def startup_event():
 async def root():
     """Root endpoint."""
     return {
-        "message": "ImpulseGuard Slow Brain API",
-        "version": "1.0.0",
-        "endpoints": ["/analyze", "/sync-memory", "/gemini-analyze"],
-        "gemini_available": gemini_client is not None
+        "message": "ImpulseGuard API",
+        "version": "2.0.0",
+        "endpoints": ["/pipeline-analyze", "/analyze", "/sync-memory", "/gemini-analyze"],
+        "fast_brain_available": fast_brain is not None,
+        "slow_brain_available": memory_engine is not None
     }
 
 
@@ -236,8 +288,127 @@ async def health_check():
         "status": "healthy",
         "memory_indexed": memory_engine._indexed if memory_engine else False,
         "chroma_collection_count": memory_engine.collection.count() if memory_engine and memory_engine._indexed else 0,
-        "gemini_available": gemini_client is not None
+        "gemini_available": gemini_client is not None,
+        "fast_brain_available": fast_brain is not None
     }
+
+
+# ===================== PIPELINE ANALYZE ENDPOINT =====================
+
+@app.post("/pipeline-analyze", response_model=PipelineResponse)
+async def pipeline_analyze(request: PipelineRequest) -> PipelineResponse:
+    """
+    Full pipeline analysis: Fast Brain (Bayesian) -> Slow Brain (RAG + Vertex AI).
+    
+    This endpoint is called by the browser extension when a user clicks
+    "Add to Cart" or "Buy Now". It:
+    1. Runs Fast Brain Bayesian inference with telemetry data
+    2. Passes result to Slow Brain for RAG-enhanced reasoning
+    3. Returns combined analysis with appropriate intervention
+    
+    Args:
+        request: Pipeline request with purchase data and telemetry
+        
+    Returns:
+        Combined Fast Brain + Slow Brain analysis with intervention action
+    """
+    try:
+        # Step 1: Prepare Fast Brain input data
+        # Combine placeholder biometrics with real telemetry
+        current_data = {
+            # Biometrics (placeholder - to be replaced with Presage SDK)
+            "heart_rate": DEFAULT_BIOMETRICS["heart_rate"],
+            "respiration_rate": DEFAULT_BIOMETRICS["respiration_rate"],
+            "emotion_arousal": DEFAULT_BIOMETRICS["emotion_arousal"],
+            
+            # Real telemetry from browser extension
+            "click_rate": request.click_count / max(request.time_on_site, 1),  # clicks per second
+            "time_on_site": request.time_on_site,
+            "time_to_cart": request.time_to_cart if request.time_to_cart else request.time_on_site,
+            "scroll_velocity_peak": request.peak_scroll_velocity,
+            "system_hour": request.system_hour,
+            
+            # Website context
+            "website_name": request.website
+        }
+        
+        # Step 2: Run Fast Brain inference
+        p_impulse_fast = fast_brain.calculate_p_impulse(current_data)
+        fast_intervention = fast_brain.get_intervention_level(p_impulse_fast)
+        
+        # Get structured output for dominant trigger
+        structured_output = fast_brain.get_structured_output(current_data)
+        dominant_trigger = structured_output.get("dominant_trigger", "unknown")
+        
+        print(f"[Pipeline] Fast Brain: p_impulse={p_impulse_fast:.3f}, intervention={fast_intervention}, trigger={dominant_trigger}")
+        
+        # Step 3: Run Slow Brain analysis
+        if memory_engine:
+            try:
+                purchase_dict = {
+                    "product": request.product,
+                    "cost": request.cost,
+                    "website": request.website
+                }
+                
+                slow_brain_result = await memory_engine.analyze_purchase(
+                    p_impulse_fast=p_impulse_fast,
+                    purchase_data=purchase_dict
+                )
+                
+                print(f"[Pipeline] Slow Brain: score={slow_brain_result['impulse_score']:.3f}, action={slow_brain_result['intervention_action']}")
+                
+                return PipelineResponse(
+                    # Fast Brain output
+                    p_impulse_fast=p_impulse_fast,
+                    fast_brain_intervention=fast_intervention,
+                    fast_brain_dominant_trigger=dominant_trigger,
+                    
+                    # Slow Brain output
+                    impulse_score=slow_brain_result['impulse_score'],
+                    confidence=slow_brain_result['confidence'],
+                    reasoning=slow_brain_result['reasoning'],
+                    intervention_action=slow_brain_result['intervention_action'],
+                    memory_update=slow_brain_result.get('memory_update')
+                )
+                
+            except Exception as slow_brain_error:
+                print(f"[Pipeline] Slow Brain error: {slow_brain_error}")
+                # Fall through to Fast Brain only response
+        
+        # Fallback: Fast Brain only (Slow Brain unavailable)
+        # Map Fast Brain intervention to Slow Brain format
+        intervention_mapping = {
+            "NONE": "NONE",
+            "NUDGE": "MIRROR",
+            "CHALLENGE": "COOLDOWN",
+            "LOCKOUT": "PHRASE"
+        }
+        
+        return PipelineResponse(
+            p_impulse_fast=p_impulse_fast,
+            fast_brain_intervention=fast_intervention,
+            fast_brain_dominant_trigger=dominant_trigger,
+            impulse_score=p_impulse_fast,  # Use Fast Brain score directly
+            confidence=0.5,  # Medium confidence without Slow Brain
+            reasoning=f"Fast Brain analysis only. Score based on {dominant_trigger}. Slow Brain unavailable.",
+            intervention_action=intervention_mapping.get(fast_intervention, "MIRROR"),
+            memory_update=None
+        )
+        
+    except Exception as e:
+        print(f"[Pipeline] Error: {e}")
+        # Complete fallback
+        return PipelineResponse(
+            p_impulse_fast=0.5,
+            fast_brain_intervention="NUDGE",
+            fast_brain_dominant_trigger="error",
+            impulse_score=0.5,
+            confidence=0.3,
+            reasoning=f"Analysis error: {str(e)}. Using default intervention.",
+            intervention_action="MIRROR",
+            memory_update=None
+        )
 
 
 # ===================== GEMINI ANALYSIS ENDPOINT =====================

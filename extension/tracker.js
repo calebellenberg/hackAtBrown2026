@@ -465,7 +465,7 @@
                 // Check if chrome.storage is available
                 if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) {
                     console.log('[Tracker] chrome.storage not available, sending to API only');
-                    sendToGeminiAPI(summary, []);
+                    sendToPipelineAPI(summary, []);
                     return summary;
                 }
                 
@@ -494,8 +494,8 @@
                         console.log(`[Tracker] ${storageKey} entries:`, trimmedSpecific.length);
                         console.log(`[Tracker] all_purchase_attempts entries:`, trimmedAll.length);
                         
-                        // Send to Gemini API for real-time analysis
-                        sendToGeminiAPI(summary, trimmedAll.slice(-10));
+                        // Send to Pipeline API for Fast Brain + Slow Brain analysis
+                        sendToPipelineAPI(summary, trimmedAll.slice(-10));
                     });
                 });
                 
@@ -506,57 +506,34 @@
             }
         }
         
-        // ===================== GEMINI API INTEGRATION =====================
+        // ===================== PIPELINE API INTEGRATION =====================
         const BACKEND_URL = 'http://localhost:8000';
         
-        async function sendToGeminiAPI(currentPurchase, recentHistory) {
+        async function sendToPipelineAPI(currentPurchase, recentHistory) {
             try {
-                console.log('[Tracker] 🚀 Sending purchase data to Gemini API...');
+                console.log('[Tracker] 🚀 Sending purchase data to Pipeline API (Fast Brain + Slow Brain)...');
                 
-                // Get user preferences from localStorage
-                let preferences = {};
-                try {
-                    const prefsStr = localStorage.getItem('stop_shopping_preferences');
-                    if (prefsStr) {
-                        preferences = JSON.parse(prefsStr);
-                    }
-                } catch (e) {
-                    console.warn('[Tracker] Could not load preferences:', e);
-                }
+                // Get current hour for late-night detection
+                const systemHour = new Date().getHours();
                 
+                // Build pipeline request with telemetry data
                 const requestBody = {
-                    current_purchase: {
-                        id: currentPurchase.id,
-                        timestamp: currentPurchase.timestamp,
-                        actionType: currentPurchase.actionType,
-                        domain: currentPurchase.domain,
-                        pageUrl: currentPurchase.pageUrl,
-                        productName: currentPurchase.productName,
-                        priceRaw: currentPurchase.priceRaw,
-                        priceValue: currentPurchase.priceValue,
-                        timeToCart: currentPurchase.timeToCart,
-                        timeOnSite: currentPurchase.timeOnSite,
-                        clickCount: currentPurchase.clickCount,
-                        cartClickCount: currentPurchase.cartClickCount,
-                        peakScrollVelocity: currentPurchase.peakScrollVelocity
-                    },
-                    purchase_history: recentHistory.map(p => ({
-                        id: p.id,
-                        timestamp: p.timestamp,
-                        actionType: p.actionType,
-                        domain: p.domain,
-                        productName: p.productName,
-                        priceRaw: p.priceRaw,
-                        priceValue: p.priceValue,
-                        timeToCart: p.timeToCart,
-                        timeOnSite: p.timeOnSite
-                    })),
-                    preferences: preferences
+                    // Purchase data
+                    product: currentPurchase.productName || 'Unknown Product',
+                    cost: currentPurchase.priceValue || 0,
+                    website: currentPurchase.domain || 'unknown',
+                    
+                    // Telemetry from tracker
+                    time_to_cart: currentPurchase.timeToCart || null,
+                    time_on_site: currentPurchase.timeOnSite || 60,
+                    click_count: currentPurchase.clickCount || 0,
+                    peak_scroll_velocity: currentPurchase.peakScrollVelocity || 0,
+                    system_hour: systemHour
                 };
                 
-                console.log('[Tracker] Request body:', requestBody);
+                console.log('[Tracker] Pipeline request:', requestBody);
                 
-                const response = await fetch(`${BACKEND_URL}/gemini-analyze`, {
+                const response = await fetch(`${BACKEND_URL}/pipeline-analyze`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -570,33 +547,41 @@
                 
                 const result = await response.json();
                 
-                console.log('[Tracker] 🧠 GEMINI ANALYSIS RESULT:');
+                console.log('[Tracker] 🧠 PIPELINE ANALYSIS RESULT:');
                 console.log('━'.repeat(50));
-                console.log(`Risk Level: ${result.risk_level} (${result.risk_score}/100)`);
-                console.log(`Should Intervene: ${result.should_intervene}`);
-                console.log(`Intervention Type: ${result.intervention_type}`);
+                console.log(`Fast Brain Score: ${result.p_impulse_fast.toFixed(3)}`);
+                console.log(`Fast Brain Intervention: ${result.fast_brain_intervention}`);
+                console.log(`Dominant Trigger: ${result.fast_brain_dominant_trigger}`);
+                console.log('---');
+                console.log(`Slow Brain Score: ${result.impulse_score.toFixed(3)}`);
+                console.log(`Confidence: ${result.confidence.toFixed(2)}`);
+                console.log(`Intervention Action: ${result.intervention_action}`);
                 console.log(`Reasoning: ${result.reasoning}`);
-                console.log(`Message: ${result.personalized_message}`);
-                console.log('Recommendations:', result.recommendations);
+                if (result.memory_update) {
+                    console.log(`Memory Update: ${result.memory_update}`);
+                }
                 console.log('━'.repeat(50));
                 
-                // Dispatch event so content.js can show appropriate overlay
-                window.dispatchEvent(new CustomEvent('gemini-analysis-result', {
+                // Dispatch event so content.js can show appropriate intervention overlay
+                console.log('[Tracker] 📤 Dispatching pipeline-analysis-result event to content.js');
+                console.log('[Tracker] Event payload:', JSON.stringify(result, null, 2));
+                window.dispatchEvent(new CustomEvent('pipeline-analysis-result', {
                     detail: result
                 }));
+                console.log('[Tracker] ✅ Event dispatched successfully');
                 
                 // Also save the analysis result (if chrome.storage is available)
                 if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-                    chrome.storage.local.get(['gemini_analyses'], (data) => {
-                        const analyses = data.gemini_analyses || [];
+                    chrome.storage.local.get(['pipeline_analyses'], (data) => {
+                        const analyses = data.pipeline_analyses || [];
                         analyses.push({
                             timestamp: new Date().toISOString(),
                             purchase: currentPurchase.productName,
                             result: result
                         });
                         chrome.storage.local.set({ 
-                            gemini_analyses: analyses.slice(-50),
-                            last_gemini_result: result
+                            pipeline_analyses: analyses.slice(-50),
+                            last_pipeline_result: result
                         });
                     });
                 }
@@ -604,19 +589,20 @@
                 return result;
                 
             } catch (error) {
-                console.error('[Tracker] ❌ Failed to send to Gemini API:', error);
+                console.error('[Tracker] ❌ Failed to send to Pipeline API:', error);
                 console.log('[Tracker] Make sure the backend is running: cd backend && uvicorn app:app --reload');
                 
-                // Dispatch a fallback result
-                window.dispatchEvent(new CustomEvent('gemini-analysis-result', {
+                // Dispatch a fallback result with MIRROR intervention
+                window.dispatchEvent(new CustomEvent('pipeline-analysis-result', {
                     detail: {
-                        risk_level: 'UNKNOWN',
-                        risk_score: 50,
-                        should_intervene: true,
-                        intervention_type: 'GENTLE_REMINDER',
-                        reasoning: 'Could not connect to AI backend.',
-                        recommendations: ['Take a moment to reflect on this purchase.'],
-                        personalized_message: 'Backend unavailable. Please take a moment to consider this purchase.',
+                        p_impulse_fast: 0.5,
+                        fast_brain_intervention: 'NUDGE',
+                        fast_brain_dominant_trigger: 'error',
+                        impulse_score: 0.5,
+                        confidence: 0.3,
+                        reasoning: 'Could not connect to backend. Please take a moment to consider this purchase.',
+                        intervention_action: 'MIRROR',
+                        memory_update: null,
                         error: error.message
                     }
                 }));
@@ -625,7 +611,7 @@
             }
         }
         
-        // ===================== END GEMINI API INTEGRATION =====================
+        // ===================== END PIPELINE API INTEGRATION =====================
         
         // Listen for cart click events from content.js (this is the primary source of cart click data)
         window.addEventListener('stop-shopping-cart-click', (ev) => {
