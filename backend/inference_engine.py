@@ -19,14 +19,14 @@ class ImpulseInferenceEngine:
     behavioral data, accounting for individual baseline differences.
     """
     
-    # Feature weights for likelihood combination
+    # Feature weights for likelihood combination (persage stats weighted very low)
     WEIGHTS = {
-        'heart_rate': 0.25,
-        'respiration_rate': 0.20,
-        'scroll_velocity': 0.15,
-        'emotion_arousal': 0.20,
-        'click_rate': 0.10,
-        'time_to_cart': 0.10
+        'heart_rate': 0.03,
+        'respiration_rate': 0.03,
+        'scroll_velocity': 0.26,
+        'emotion_arousal': 0.34,
+        'click_rate': 0.17,
+        'time_to_cart': 0.17
     }
     
     # Sigmoid steepness parameter for Z-score to likelihood mapping
