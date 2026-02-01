@@ -507,23 +507,16 @@
         }
         
         // ===================== PIPELINE API INTEGRATION =====================
-        const BACKEND_URL = 'http://localhost:8000';
-        
+        // Use service worker proxy so HTTPS pages can reach HTTP backend (WSL) without mixed-content block.
         async function sendToPipelineAPI(currentPurchase, recentHistory) {
             try {
                 console.log('[Tracker] 🚀 Sending purchase data to Pipeline API (Fast Brain + Slow Brain)...');
                 
-                // Get current hour for late-night detection
                 const systemHour = new Date().getHours();
-                
-                // Build pipeline request with telemetry data
                 const requestBody = {
-                    // Purchase data
                     product: currentPurchase.productName || 'Unknown Product',
                     cost: currentPurchase.priceValue || 0,
                     website: currentPurchase.domain || 'unknown',
-                    
-                    // Telemetry from tracker
                     time_to_cart: currentPurchase.timeToCart || null,
                     time_on_site: currentPurchase.timeOnSite || 60,
                     click_count: currentPurchase.clickCount || 0,
@@ -533,19 +526,17 @@
                 
                 console.log('[Tracker] Pipeline request:', requestBody);
                 
-                const response = await fetch(`${BACKEND_URL}/pipeline-analyze`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(requestBody)
+                const reply = await new Promise(function (resolve) {
+                    chrome.runtime.sendMessage({ type: 'pipeline-analyze', body: requestBody }, resolve);
                 });
                 
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                if (reply && reply.error) {
+                    throw new Error(reply.error);
                 }
-                
-                const result = await response.json();
+                const result = reply && reply.data;
+                if (!result) {
+                    throw new Error('No response from backend');
+                }
                 
                 console.log('[Tracker] 🧠 PIPELINE ANALYSIS RESULT:');
                 console.log('━'.repeat(50));

@@ -416,62 +416,70 @@ function createCooldownOverlay(opts = {}) {
     const overlay = document.createElement('div');
     overlay.id = 'impulse-cooldown-overlay';
     
-    const cameraPageUrl = chrome.runtime.getURL('camera.html');
     const timeSpentMs = Date.now() - pageLoadTime;
     const scorePercent = Math.round(impulseScore * 100);
     
-    // Inline styles for guaranteed visibility
     overlay.style.cssText = `
-        position: fixed !important;
-        top: 0 !important;
-        left: 0 !important;
-        width: 100vw !important;
-        height: 100vh !important;
-        background: linear-gradient(135deg, rgba(20,0,0,0.98) 0%, rgba(40,10,10,0.98) 100%) !important;
+        position: fixed !important; top: 0 !important; left: 0 !important;
+        width: 100vw !important; height: 100vh !important;
+        background: rgba(12,8,8,0.97) !important;
         z-index: 2147483647 !important;
-        display: flex !important;
-        justify-content: center !important;
-        align-items: center !important;
+        display: flex !important; justify-content: center !important; align-items: center !important;
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+        box-sizing: border-box !important;
     `;
     
     overlay.innerHTML = `
-        <div style="background: linear-gradient(145deg, #2e1e1e, #4a2a2a); padding: 40px; border-radius: 20px; max-width: 500px; width: 90%; text-align: center; color: white; box-shadow: 0 25px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,100,100,0.2);">
+        <div class="stopify-cooldown-card" style="
+            box-sizing: border-box;
+            background: linear-gradient(160deg, #2a2222 0%, #3d2a2a 100%);
+            padding: 28px 24px;
+            border-radius: 16px;
+            max-width: 420px;
+            width: calc(100vw - 32px);
+            max-height: 90vh;
+            overflow-y: auto;
+            text-align: center;
+            color: #fff;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,100,100,0.15);
+        ">
+            <div style="margin-bottom: 16px;">
+                <h1 style="margin: 0; font-size: 22px; font-weight: 600; color: #ff7b7b; letter-spacing: -0.02em;">Cool down period</h1>
+            </div>
             <div style="margin-bottom: 20px;">
-                <span style="font-size: 48px;">⏱️</span>
-                <h1 style="margin: 10px 0 0; font-size: 28px; color: #ff6b6b;">Cool Down Period</h1>
-            </div>
-            
-            <div style="margin: 20px 0;">
-                <div style="background: rgba(255,255,255,0.1); border-radius: 10px; height: 12px; overflow: hidden;">
-                    <div style="background: linear-gradient(90deg, #ff6b6b, #ffa500); height: 100%; width: ${scorePercent}%; border-radius: 10px;"></div>
+                <div style="background: rgba(255,255,255,0.08); border-radius: 8px; height: 8px; overflow: hidden;">
+                    <div style="background: linear-gradient(90deg, #e85a5a, #f0a030); height: 100%; width: ${scorePercent}%; border-radius: 8px; transition: width 0.3s ease;"></div>
                 </div>
-                <span style="color: #ff6b6b; font-size: 14px; margin-top: 8px; display: block; font-weight: 600;">Impulse Score: ${scorePercent}% (High Risk)</span>
+                <span style="color: rgba(255,255,255,0.6); font-size: 12px; margin-top: 6px; display: block;">Impulse score ${scorePercent}%</span>
             </div>
-            
-            <div id="timer-container" style="margin: 25px 0;">
-                <div id="timer-circle" style="width: 120px; height: 120px; border-radius: 50%; background: linear-gradient(145deg, #3a2020, #5a3030); display: flex; flex-direction: column; justify-content: center; align-items: center; margin: 0 auto; box-shadow: 0 10px 30px rgba(0,0,0,0.4), inset 0 2px 10px rgba(255,255,255,0.05);">
-                    <span id="timer-value" style="font-size: 48px; font-weight: bold; color: #ff6b6b;">${cooldownSeconds}</span>
-                    <span style="font-size: 12px; color: rgba(255,255,255,0.5); text-transform: uppercase; letter-spacing: 1px;">seconds</span>
+            <div id="timer-container" style="margin: 20px 0;">
+                <div id="timer-circle" style="
+                    width: 100px; height: 100px; border-radius: 50%;
+                    background: linear-gradient(160deg, #3d2828, #4d3232);
+                    display: flex; flex-direction: column; justify-content: center; align-items: center;
+                    margin: 0 auto;
+                    box-shadow: inset 0 2px 8px rgba(0,0,0,0.3);
+                    transition: background 0.4s ease;
+                ">
+                    <span id="timer-value" style="font-size: 40px; font-weight: 700; color: #ff7b7b; line-height: 1; transition: color 0.3s ease;">${cooldownSeconds}</span>
+                    <span style="font-size: 11px; color: rgba(255,255,255,0.45); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px;">sec</span>
                 </div>
             </div>
-            
-            <div style="margin: 20px 0; border-radius: 12px; overflow: hidden; background: #000; max-height: 150px;">
-                <iframe src="${cameraPageUrl}" allow="camera" frameborder="0" style="width: 100%; height: 150px; border: none;"></iframe>
+            <div style="margin: 16px 0; color: rgba(255,255,255,0.85); font-size: 14px;">
+                ${productName ? `<p style="margin: 0 0 4px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${productName}</p>` : ''}
+                ${price ? `<p style="margin: 0 0 4px; color: #ff7b7b; font-weight: 600;">${price}</p>` : ''}
+                <p style="margin: 0; color: rgba(255,255,255,0.45); font-size: 12px;">Time on site: ${formatDuration(timeSpentMs)}</p>
             </div>
-            
-            <div style="margin: 15px 0; color: rgba(255,255,255,0.8);">
-                ${productName ? `<p style="margin: 5px 0; font-size: 16px; font-weight: 600;">${productName}</p>` : ''}
-                ${price ? `<p style="margin: 5px 0; color: #ff6b6b; font-size: 20px; font-weight: bold;">${price}</p>` : ''}
-                <p style="margin: 5px 0; color: rgba(255,255,255,0.5); font-size: 13px;">Time on site: ${formatDuration(timeSpentMs)}</p>
+            <div style="background: rgba(255,107,107,0.12); border-left: 3px solid #e85a5a; padding: 12px 14px; margin: 16px 0; text-align: left; border-radius: 0 8px 8px 0;">
+                <p style="margin: 0 0 6px; font-weight: 600; color: #ff7b7b; font-size: 12px; text-transform: uppercase; letter-spacing: 0.03em;">Why we're pausing</p>
+                <p style="margin: 0; color: rgba(255,255,255,0.9); line-height: 1.45; font-size: 13px;">${reasoning}</p>
             </div>
-            
-            <div style="background: rgba(255,107,107,0.15); border-left: 4px solid #ff6b6b; padding: 15px; margin: 20px 0; text-align: left; border-radius: 0 8px 8px 0;">
-                <p style="margin: 0 0 8px; font-weight: 600; color: #ff6b6b; font-size: 14px;">This purchase was flagged because:</p>
-                <p style="margin: 0; color: rgba(255,255,255,0.9); line-height: 1.5; font-size: 14px;">${reasoning}</p>
-            </div>
-            
-            <button id="cooldown-continue-btn" disabled style="background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.4); border: none; padding: 15px 30px; font-size: 16px; font-weight: 600; border-radius: 10px; cursor: not-allowed; width: 100%;">
+            <button id="cooldown-continue-btn" disabled style="
+                background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.4);
+                border: none; padding: 14px 24px; font-size: 15px; font-weight: 600;
+                border-radius: 10px; cursor: not-allowed; width: 100%;
+                transition: background 0.2s, color 0.2s;
+            ">
                 Please wait...
             </button>
         </div>
@@ -493,9 +501,9 @@ function createCooldownOverlay(opts = {}) {
             clearInterval(countdown);
             continueBtn.disabled = false;
             continueBtn.textContent = 'Continue with purchase';
-            continueBtn.style.cssText = 'background: linear-gradient(135deg, #ff6b6b, #ffa500); color: #000; border: none; padding: 15px 30px; font-size: 16px; font-weight: 600; border-radius: 10px; cursor: pointer; width: 100%;';
-            timerCircle.style.background = 'linear-gradient(145deg, #2a4a2a, #3a6a3a)';
-            timerValue.style.color = '#44cf6c';
+            continueBtn.style.cssText = 'background: linear-gradient(135deg, #e85a5a, #f0a030); color: #fff; border: none; padding: 14px 24px; font-size: 15px; font-weight: 600; border-radius: 10px; cursor: pointer; width: 100%; transition: background 0.2s, color 0.2s;';
+            timerCircle.style.background = 'linear-gradient(160deg, #2a3d2a, #3a503a)';
+            timerValue.style.color = '#6dd66d';
         }
     }, 1000);
     
@@ -608,18 +616,14 @@ function createPhraseOverlay(opts = {}) {
 // Show the appropriate intervention based on the analysis result
 function showInterventionOverlay(interventionAction, opts = {}) {
     console.log('[content.js] 🎯 showInterventionOverlay called');
-    console.log('[content.js] Intervention action (raw):', interventionAction);
-    
-    // NORMALIZE the action to uppercase and trim whitespace
-    const action = (interventionAction || '').toString().trim().toUpperCase();
-    console.log('[content.js] Intervention action (normalized):', action);
+    console.log('[content.js] Intervention action:', interventionAction);
     console.log('[content.js] Options:', JSON.stringify(opts, null, 2));
     
     try {
-        switch (action) {
+        switch (interventionAction) {
             case 'NONE':
                 // No intervention needed - allow purchase
-                console.log('[content.js] ✅ No intervention needed (NONE)');
+                console.log('[content.js] ✅ No intervention needed');
                 return false;
                 
             case 'MIRROR':
@@ -637,18 +641,15 @@ function showInterventionOverlay(interventionAction, opts = {}) {
                 createPhraseOverlay(opts);
                 return true;
                 
-            case '':
-                // Empty action = no intervention
-                console.log('[content.js] ✅ Empty action, treating as NONE');
-                return false;
-                
             default:
-                // Unknown action - log a warning but DON'T show an overlay
-                console.warn('[content.js] ⚠️ Unknown intervention type "' + action + '", treating as NONE');
-                return false;
+                // Default to MIRROR for unknown intervention types
+                console.log('[content.js] ❓ Unknown intervention type "' + interventionAction + '", defaulting to MIRROR');
+                createMirrorOverlay(opts);
+                return true;
         }
     } catch (error) {
         console.error('[content.js] ❌ Error creating intervention overlay:', error);
+        alert('Error creating intervention: ' + error.message);
         return false;
     }
 }
@@ -707,9 +708,6 @@ const DISABLE_KEY_PREFIX = 'stop_shopping.disabled:';
     // Flag to prevent double-triggering of analysis
     let isProcessingPurchase = false;
     let lastProcessedProduct = null;
-    
-    // Track when interventions are SHOWN (not just completed) - more robust than callback-based tracking
-    let lastInterventionShown = null;
     
     // Create a loading overlay while waiting for pipeline analysis
     function createLoadingOverlay(productName, price) {
@@ -779,12 +777,10 @@ const DISABLE_KEY_PREFIX = 'stop_shopping.disabled:';
             
             // Build intervention options with callbacks to reset state
             const onInterventionComplete = () => {
-                console.log('[content.js] 🔓 Intervention COMPLETE callback fired!');
-                console.log('[content.js] ProductKey:', productKey);
+                console.log('[content.js] 🔓 Intervention complete, resetting state');
                 isProcessingPurchase = false;
                 if (productKey) {
                     lastProcessedProduct = { key: productKey, timestamp: Date.now() };
-                    console.log('[content.js] ✅ Set lastProcessedProduct:', lastProcessedProduct);
                 }
             };
             
@@ -813,12 +809,7 @@ const DISABLE_KEY_PREFIX = 'stop_shopping.disabled:';
                 // Show a brief "Approved" toast for feedback
                 showApprovedToast();
             } else {
-                console.log('[content.js] 🛑 Intervention overlay shown for product:', productKey);
-                // Track that we showed an intervention - this is more robust than relying on callbacks
-                if (productKey) {
-                    lastInterventionShown = { key: productKey, timestamp: Date.now() };
-                    console.log('[content.js] 📝 Recorded intervention shown for:', productKey);
-                }
+                console.log('[content.js] 🛑 Intervention overlay shown');
             }
         } catch (error) {
             console.error('[content.js] ❌ Error handling pipeline result:', error);
@@ -869,6 +860,9 @@ const DISABLE_KEY_PREFIX = 'stop_shopping.disabled:';
 
         button.addEventListener('click', (e) => {
             console.log('[content.js] 🛒 Purchase button clicked - intercepting');
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
             
             const result = getPagePrice();
             const productName = getProductName();
@@ -886,23 +880,13 @@ const DISABLE_KEY_PREFIX = 'stop_shopping.disabled:';
                 return false;
             }
             
-            // Check if we just processed this same product (within 60 seconds)
+            // Check if we just processed this same product (within 30 seconds)
             if (lastProcessedProduct && lastProcessedProduct.key === productKey) {
                 const timeSinceLastProcess = Date.now() - lastProcessedProduct.timestamp;
-                if (timeSinceLastProcess < 60000) { // 60 second cooldown
-                    console.log('[content.js] ✅ Already completed intervention for this product, allowing purchase');
-                    // Allow the actual purchase to proceed - don't call preventDefault
-                    return;
-                }
-            }
-            
-            // ALSO check if we SHOWED an intervention for this product recently (even if callback didn't fire)
-            if (lastInterventionShown && lastInterventionShown.key === productKey) {
-                const timeSinceIntervention = Date.now() - lastInterventionShown.timestamp;
-                if (timeSinceIntervention < 60000) { // 60 second window
-                    console.log('[content.js] ✅ Already showed intervention for this product recently, allowing purchase');
-                    // Allow the actual purchase to proceed - don't call preventDefault
-                    return;
+                if (timeSinceLastProcess < 30000) { // 30 second cooldown
+                    console.log('[content.js] ⚠️ Already processed this product recently, allowing click through');
+                    // Allow the actual purchase to proceed
+                    return true;
                 }
             }
             
@@ -983,7 +967,7 @@ const DISABLE_KEY_PREFIX = 'stop_shopping.disabled:';
             }
             
             return false;
-        }, true); // capture phase so we run before the site's handler
+        }, true);
     }
 
     // Expose find/attach logic (re-implemented from dist)
@@ -1058,48 +1042,7 @@ const DISABLE_KEY_PREFIX = 'stop_shopping.disabled:';
             interceptAll();
         });
         observer.observe(document.body, { childList: true, subtree: true });
-
-        // Capture-phase fallback: catch Add to Cart / Buy Now by text when button wasn't in our selectors
-        document.addEventListener('click', (e) => {
-            const buttonLike = e.target.closest('button, input[type="submit"], input[type="button"], [role="button"], [data-action="add-to-cart"], [data-action="buy-now"]');
-            if (!buttonLike) return;
-            const text = (buttonLike.value || buttonLike.textContent || buttonLike.getAttribute('aria-label') || '').toLowerCase();
-            const isAddCart = text.includes('add to cart') || text.includes('add to basket');
-            const isBuyNow = text.includes('buy now') || text.includes('proceed to checkout') || text.includes('buy with');
-            if (!isAddCart && !isBuyNow) return;
-            if (buttonLike.dataset.intercepted) return; // already handled by attachClickListener
-            if (isProcessingPurchase) {
-                e.preventDefault();
-                e.stopPropagation();
-                e.stopImmediatePropagation();
-                return false;
-            }
-            buttonLike.dataset.intercepted = 'true';
-            isProcessingPurchase = true;
-            setTimeout(() => {
-                if (isProcessingPurchase) {
-                    isProcessingPurchase = false;
-                }
-            }, 60000);
-            const result = getPagePrice();
-            const productName = getProductName();
-            const priceDisplay = result.raw || (result.value ? `$${result.value}` : 'Price not found');
-            const productKey = productName + '-' + (result.value || 'unknown');
-            pendingPurchaseData = { raw: result.raw, value: result.value, productName: productName, priceDisplay: priceDisplay, productKey: productKey, buttonText: isBuyNow ? 'Buy Now' : 'Add to Cart' };
-            window.dispatchEvent(new CustomEvent('stop-shopping-cart-click', {
-                detail: { raw: result.raw, value: result.value, productName: productName, buttonText: pendingPurchaseData.buttonText, timestamp: Date.now(), cartClickDate: new Date().toISOString() }
-            }));
-            try {
-                createLoadingOverlay(productName, priceDisplay);
-            } catch (err) {
-                console.error('[content.js] Error creating loading overlay:', err);
-            }
-            e.preventDefault();
-            e.stopPropagation();
-            e.stopImmediatePropagation();
-            return false;
-        }, true);
-
+        
         // Also intercept form submissions for add-to-cart and buy-now forms
         document.addEventListener('submit', (e) => {
             const form = e.target;
@@ -1111,60 +1054,22 @@ const DISABLE_KEY_PREFIX = 'stop_shopping.disabled:';
                                  form.querySelector('[name="submit.buy-now"]') ||
                                  form.querySelector('#one-click-button');
             
-            if (isCartForm || isBuyNowForm) {
-                const result = getPagePrice();
-                const productName = getProductName();
-                const priceDisplay = result.raw || (result.value ? `$${result.value}` : 'Price not found');
-                const productKey = `${productName}-${result.value || 'unknown'}`;
-                
-                console.log('[content.js] 📋 Form submission intercepted, productKey:', productKey);
-                
-                // Check if we already showed an intervention for this product (same logic as button click)
-                if (lastInterventionShown && lastInterventionShown.key === productKey) {
-                    const timeSinceIntervention = Date.now() - lastInterventionShown.timestamp;
-                    if (timeSinceIntervention < 60000) {
-                        console.log('[content.js] ✅ Form: Already showed intervention, allowing submission');
-                        return; // Allow form submission
-                    }
-                }
-                
-                if (lastProcessedProduct && lastProcessedProduct.key === productKey) {
-                    const timeSinceLastProcess = Date.now() - lastProcessedProduct.timestamp;
-                    if (timeSinceLastProcess < 60000) {
-                        console.log('[content.js] ✅ Form: Already processed product, allowing submission');
-                        return; // Allow form submission
-                    }
-                }
-                
-                // Check if already processing
-                if (isProcessingPurchase) {
-                    console.log('[content.js] ⚠️ Form: Already processing, ignoring');
-                    e.preventDefault();
-                    e.stopPropagation();
-                    return false;
-                }
-                
-                console.log('[content.js] 🛒 Intercepting purchase form submission');
+            if ((isCartForm || isBuyNowForm) && !form.dataset.overlayShown) {
+                console.log('[content.js] Intercepting purchase form submission');
                 e.preventDefault();
                 e.stopPropagation();
                 e.stopImmediatePropagation();
                 
-                isProcessingPurchase = true;
+                form.dataset.overlayShown = 'true';
+                
+                const result = getPagePrice();
+                const productName = getProductName();
+                const priceDisplay = result.raw || (result.value ? `$${result.value}` : 'Price not found');
                 
                 // Determine button text for action type
                 const buttonText = isBuyNowForm ? 'Buy Now' : 'Add to Cart';
                 
-                // Store pending purchase data
-                pendingPurchaseData = {
-                    raw: result.raw,
-                    value: result.value,
-                    productName: productName,
-                    priceDisplay: priceDisplay,
-                    buttonText: buttonText,
-                    productKey: productKey
-                };
-                
-                // Dispatch event for tracker.js (triggers pipeline API)
+                // Dispatch event for tracker.js
                 const cartEvent = new CustomEvent('stop-shopping-cart-click', {
                     detail: { 
                         raw: result.raw, 
@@ -1177,8 +1082,10 @@ const DISABLE_KEY_PREFIX = 'stop_shopping.disabled:';
                 });
                 window.dispatchEvent(cartEvent);
                 
-                // Show loading overlay while waiting for pipeline result
-                createLoadingOverlay(productName, priceDisplay);
+                createOverlay({ price: priceDisplay, productName: productName });
+                
+                // Reset after a delay so they can try again after overlay
+                setTimeout(() => { form.dataset.overlayShown = ''; }, 1000);
                 
                 return false;
             }

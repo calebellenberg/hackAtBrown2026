@@ -72,29 +72,27 @@ if VERTEX_SERVICE_ACCOUNT_PATH and os.path.exists(VERTEX_SERVICE_ACCOUNT_PATH):
         print(f"Warning: Could not initialize memory engine: {e}")
 
 # Default baseline for users without calibration (used by Fast Brain)
-# These values are calibrated for realistic behavioral patterns from browser extension
+# Larger std = less trigger-happy: need bigger deviation from mean to drive high likelihood
 DEFAULT_BASELINE = {
-    # Biometrics (placeholder values - kept at typical resting levels)
-    "heart_rate": {"mean": 72.0, "std": 10.0},
-    "respiration_rate": {"mean": 16.0, "std": 3.0},
+    # Biometrics (user baseline) — wider std so normal variation doesn't flag as impulsive
+    "heart_rate": {"mean": 67.0, "std": 22.0},
+    "respiration_rate": {"mean": 10.0, "std": 6.5},
     
-    # Behavioral telemetry (calibrated from real browsing patterns)
-    # scroll_velocity: typical range 50-500 px/s, peaks can reach 1000+ during rapid scrolling
-    "scroll_velocity": {"mean": 200.0, "std": 150.0},
+    # Behavioral telemetry — wide stds so z-scores stay in ~0–2.5 range
+    "scroll_velocity": {"mean": 600.0, "std": 5500.0},
+    "click_rate": {"mean": 0.15, "std": 1.0},
     
-    # click_rate: clicks per second, typical browsing is 0.05-0.2 clicks/sec
-    # 0.1 clicks/sec = 6 clicks per minute (normal browsing)
-    # 0.3+ clicks/sec = rapid clicking (potentially impulsive)
-    "click_rate": {"mean": 0.1, "std": 0.1},
+    # time_on_site: seconds (used for compatibility; TTC used for impulse)
+    "time_on_site": {"mean": 180.0, "std": 110.0},
     
-    # time_on_site: seconds, typical shopping session 2-5 minutes
-    "time_on_site": {"mean": 180.0, "std": 60.0}
+    # time_to_cart: baseline 2.5s; only very fast TTC is strongly impulsive
+    "time_to_cart": {"mean": 2.5, "std": 32.0}
 }
 
 # Placeholder biometrics (fallback when persage unavailable)
 DEFAULT_BIOMETRICS = {
-    "heart_rate": 72.0,        # Match baseline mean for neutral Z-score
-    "respiration_rate": 16.0,  # Match baseline mean for neutral Z-score
+    "heart_rate": 67.0,        # Match baseline mean for neutral Z-score
+    "respiration_rate": 10.0,  # Match baseline mean for neutral Z-score
     "emotion_arousal": 0.5     # Neutral arousal level
 }
 
@@ -898,12 +896,15 @@ async def pipeline_analyze(request: PipelineRequest) -> PipelineResponse:
                     "cost": request.cost,
                     "website": request.website,
                     "system_hour": request.system_hour,  # Time of day for late-night detection
-                    # Include telemetry data for behavioral pattern learning
+                    # Telemetry for behavioral pattern learning
                     "time_to_cart": time_to_cart_value,
                     "time_on_site": request.time_on_site,
                     "click_rate": click_rate_calculated,
                     "peak_scroll_velocity": request.peak_scroll_velocity,
-                    "click_count": request.click_count
+                    "click_count": request.click_count,
+                    # Real-time vitals (e.g. hyperventilation / elevated stress)
+                    "heart_rate": biometrics["heart_rate"],
+                    "respiration_rate": biometrics["respiration_rate"],
                 }
                 
                 slow_brain_result = await memory_engine.analyze_purchase(

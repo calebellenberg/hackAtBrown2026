@@ -14,7 +14,7 @@ import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
 # CONFIG
-API_KEY = "iOU9ZoC5omYKKt9y6M3KjfP0Qz7bfk9s2gJUTz80"
+API_KEY = "P1dVIDOrc289chDW9gbYc4GkI2GNCwGj5dUIGAlx"
 CPP_PATH = "./build/headless_vitals"
 FRAME_DIR = "/dev/shm/presage_frames"
 TARGET_FPS = 30

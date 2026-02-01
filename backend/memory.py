@@ -534,21 +534,28 @@ Set to null if no new information or if this matches existing patterns."""
             click_rate = purchase_data.get('click_rate', None)
             peak_scroll_velocity = purchase_data.get('peak_scroll_velocity', None)
             click_count = purchase_data.get('click_count', None)
+            heart_rate = purchase_data.get('heart_rate', None)
+            respiration_rate = purchase_data.get('respiration_rate', None)
             
             # Build telemetry summary for prompt
             telemetry_summary = ""
-            if time_to_cart is not None or click_rate is not None or peak_scroll_velocity is not None:
+            if (time_to_cart is not None or click_rate is not None or peak_scroll_velocity is not None
+                    or heart_rate is not None or respiration_rate is not None):
                 telemetry_summary = "\n## Behavioral Telemetry (for pattern learning)\n"
                 if time_to_cart is not None:
                     telemetry_summary += f"- Time to Cart: {time_to_cart:.1f}s (very fast <30s = impulsive, slow >300s = deliberate)\n"
                 if time_on_site is not None:
                     telemetry_summary += f"- Time on Site: {time_on_site:.1f}s\n"
                 if click_rate is not None:
-                    telemetry_summary += f"- Click Rate: {click_rate:.2f} clicks/sec (high >0.3 = rapid clicking)\n"
+                    telemetry_summary += f"- Click Rate: {click_rate:.2f} clicks/sec (only \"high\" if >0.25 clicks/sec; lower is normal)\n"
                 if peak_scroll_velocity is not None:
-                    telemetry_summary += f"- Peak Scroll Velocity: {peak_scroll_velocity:.1f} px/s (very high >1000 = rushed browsing)\n"
+                    telemetry_summary += f"- Peak Scroll Velocity: {peak_scroll_velocity:.1f} px/s (only \"high\" if >2000 px/s; 200–800 is moderate; peak can be one quick flick)\n"
                 if click_count is not None:
                     telemetry_summary += f"- Total Clicks: {click_count}\n"
+                if heart_rate is not None:
+                    telemetry_summary += f"- Heart Rate: {heart_rate:.0f} BPM (elevated >90 = stress/arousal; resting ~60-80)\n"
+                if respiration_rate is not None:
+                    telemetry_summary += f"- Respiration Rate: {respiration_rate:.1f} RPM (elevated >18-20 = possible hyperventilation/stress)\n"
             
             # Build prompt with emphasis on goal alignment and context understanding
             prompt = f"""PURCHASE ANALYSIS REQUEST
@@ -620,9 +627,19 @@ Consider these factors, but goal alignment takes precedence:
    - BUT: If purchase aligns with goals, time of day matters much less
    - Goal-aligned purchases at night should NOT be heavily penalized
 
-5. **BEHAVIORAL TELEMETRY**: 
-   - Very fast time-to-cart (<30s) with high scroll velocity = potentially impulsive
-   - BUT: If goal-aligned, even fast decisions can be justified
+5. **BEHAVIORAL TELEMETRY (cite only when values actually warrant it)**:
+   - ONLY describe as "rapid decision-making" or "very fast time-to-cart" if time_to_cart is under ~30 seconds. If TTC is 1–2+ minutes, do NOT say rapid.
+   - ONLY describe as "high scroll velocity" or "rushed browsing" if peak_scroll_velocity is over ~2000 px/s. Moderate (200–800 px/s) or low values must NOT be cited as impulsivity—say "scroll velocity was moderate" or omit. Note: peak_scroll_velocity can be inflated by a single quick flick; if the user was mostly scrolling slowly, do NOT claim "high scroll velocity."
+   - ONLY describe as "high click rate" if click_rate is over ~0.25 clicks/sec. Lower values are normal browsing.
+   - FORBIDDEN: Do NOT use the phrase "extremely rapid decision-making with high scroll velocity and click rate" (or similar) unless ALL of: time_to_cart < 30s AND peak_scroll_velocity > 2000 px/s AND click_rate > 0.25. If only one or two metrics are elevated, describe that metric only (e.g. "short time to cart") and do NOT imply all three were high.
+   - If telemetry is moderate or low, do NOT claim the purchase "exhibits extremely rapid decision-making with high scroll velocity" — that overstates. Either cite the actual numbers neutrally or say behavior was not strongly impulsive by these metrics.
+   - If goal-aligned, even fast metrics can be justified; do not overstate.
+
+6. **REAL-TIME VITALS (when provided)**:
+   - Elevated respiration (>18-20 RPM) can indicate hyperventilation or stress; cite as a factor when present (e.g. "elevated respiration suggests stress or hyperventilation").
+   - Elevated heart rate (>90 BPM when at rest) can indicate arousal or stress; cite when relevant.
+   - When vitals suggest stress/hyperventilation alongside fast TTC or high scroll velocity, mention this in reasoning (e.g. "rapid decision-making plus elevated respiration suggests an impulsive, stress-driven moment").
+   - If vitals are within normal range, you need not mention them.
 
 ## STEP 4: CALCULATE FINAL SCORE
 
@@ -637,6 +654,7 @@ Then apply adjustments based on your analysis:
 - Running shoes ($120) for marathon goal: Start 0.7 → GOAL-ALIGNED (marathon training) → Large negative adjustment (-0.4) → Final: ~0.30 → NONE
 - Gaming console ($500) at 2 AM, no goal alignment: Start 0.5 → No goal support → Late night (+0.1) → High cost concern (+0.2) → Final: ~0.80 → COOLDOWN
 - Spoon ($5) at 2 AM: Start 0.7 → Essential item → Negative adjustment (-0.2) → Final: ~0.50 → MIRROR (or NONE if clearly needed)
+- Fast TTC (0.8s) AND high scroll (>2000 px/s) AND elevated respiration (e.g. 22 RPM): Only then cite "rapid decision-making and elevated respiration suggest a stress-driven, impulsive moment." If scroll was moderate (e.g. 500 px/s), do NOT say "high scroll velocity"—say "short time to cart and elevated respiration" instead.
 
 ## STEP 5: SELECT INTERVENTION
 
@@ -659,7 +677,8 @@ DO NOT generate a memory_update if:
 - The information is already captured in memory files
 
 If you do generate a memory_update, be CONCISE:
-- Behavioral patterns: "User shows rapid decision-making (TTC <30s, high scroll velocity) for [category]"
+- Behavioral patterns: Only use "rapid decision-making" when BOTH TTC <30s AND (scroll >2000 px/s OR click_rate >0.25). Otherwise: "User shows short time-to-cart for [category]" or "User shows moderate browsing for [category]"
+- Stress/arousal: "User tends to show elevated respiration or heart rate during [type] purchases - possible stress-driven impulse"
 - Spending preferences: "User is comfortable spending $X+ on [category]"
 - Goal-aligned purchases: "User purchased [item] which aligns with goal to [goal]"
 - Time patterns: "User purchases [type] items late at night - appears intentional"

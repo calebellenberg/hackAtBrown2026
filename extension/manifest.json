@@ -3,11 +3,17 @@
   "name": "Stopify",
   "version": "1.0",
   "host_permissions": [
-    "http://localhost:8766/*"
+    "http://localhost:8766/*",
+    "http://localhost:8000/*",
+    "http://172.26.57.128:8766/*",
+    "http://172.26.57.128:8000/*"
   ],
   "icons": {
     "48": "icon.png",
     "128": "icon.png"
+  },
+  "background": {
+    "service_worker": "background.js"
   },
   "action": {
     "default_popup": "popup.html"

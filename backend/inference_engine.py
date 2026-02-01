@@ -28,33 +28,34 @@ class ImpulseInferenceEngine:
     USE_PLACEHOLDER_BIOMETRICS = True
     
     # Weight profile when biometrics are placeholders (behavior-focused)
+    # Reduced overall so p_impulse stays lower; sum ~0.55
     BEHAVIOR_ONLY_WEIGHTS = {
-        'heart_rate': 0.03,
-        'respiration_rate': 0.03,
-        'scroll_velocity': 0.26,
-        'emotion_arousal': 0.34,
-        'click_rate': 0.17,
-        'time_to_cart': 0.17
+        'heart_rate': 0.02,
+        'respiration_rate': 0.02,
+        'scroll_velocity': 0.14,
+        'emotion_arousal': 0.18,
+        'click_rate': 0.09,
+        'time_to_cart': 0.10
     }
     
     # Weight profile when real biometrics are available
     FULL_BIOMETRIC_WEIGHTS = {
-        'heart_rate': 0.15,
-        'respiration_rate': 0.15,
-        'scroll_velocity': 0.20,
-        'emotion_arousal': 0.20,
-        'click_rate': 0.15,
-        'time_to_cart': 0.15
+        'heart_rate': 0.08,
+        'respiration_rate': 0.08,
+        'scroll_velocity': 0.12,
+        'emotion_arousal': 0.12,
+        'click_rate': 0.08,
+        'time_to_cart': 0.08
     }
     
     # Feature weights for likelihood combination (persage stats weighted very low)
     WEIGHTS = {
-        'heart_rate': 0.03,
-        'respiration_rate': 0.03,
-        'scroll_velocity': 0.26,
-        'emotion_arousal': 0.34,
-        'click_rate': 0.17,
-        'time_to_cart': 0.17
+        'heart_rate': 0.02,
+        'respiration_rate': 0.02,
+        'scroll_velocity': 0.14,
+        'emotion_arousal': 0.18,
+        'click_rate': 0.09,
+        'time_to_cart': 0.10
     }
     
     # Dynamic weight selection based on biometric availability
@@ -71,8 +72,8 @@ class ImpulseInferenceEngine:
         """Get weights dynamically based on biometric availability."""
         return self.get_weights()
     
-    # Sigmoid steepness parameter for Z-score to likelihood mapping
-    SIGMOID_K = 2.0
+    # Sigmoid steepness: lower = less trigger-happy (need higher z to get high likelihood)
+    SIGMOID_K = 1.0
     
     # Intervention level thresholds
     INTERVENTION_THRESHOLDS = {
@@ -132,14 +133,18 @@ class ImpulseInferenceEngine:
         self.baseline_data = baseline_data
         self.prior_p = prior_p
         
-        # Validate baseline data structure
-        required_keys = ['heart_rate', 'respiration_rate', 'scroll_velocity', 
+        # Validate baseline data structure (time_to_cart optional; when present used for TTC z-score)
+        required_keys = ['heart_rate', 'respiration_rate', 'scroll_velocity',
                         'click_rate', 'time_on_site']
         for key in required_keys:
             if key not in baseline_data:
                 raise ValueError(f"Missing baseline data for: {key}")
             if 'mean' not in baseline_data[key] or 'std' not in baseline_data[key]:
                 raise ValueError(f"Baseline data for {key} must contain 'mean' and 'std'")
+        if 'time_to_cart' in baseline_data:
+            ttc = baseline_data['time_to_cart']
+            if 'mean' not in ttc or 'std' not in ttc:
+                raise ValueError("Baseline time_to_cart must contain 'mean' and 'std'")
     
     def _calculate_z_score(self, value: float, mean: float, std: float) -> float:
         """
@@ -157,20 +162,19 @@ class ImpulseInferenceEngine:
             return 0.0  # Avoid division by zero
         return (value - mean) / std
     
+    # Cap per-feature likelihood so no single feature can saturate the combined score
+    LIKELIHOOD_MIN = 0.05
+    LIKELIHOOD_MAX = 0.88
+
     def _sigmoid_likelihood(self, z_score: float, k: Optional[float] = None) -> float:
         """
         Map Z-score to likelihood using sigmoid function.
-        
-        Args:
-            z_score: Z-score (standard deviations from baseline)
-            k: Steepness parameter (default: self.SIGMOID_K)
-            
-        Returns:
-            Likelihood value in [0, 1]
+        Clamped so no single feature drives p_impulse to 1.0.
         """
         if k is None:
             k = self.SIGMOID_K
-        return 1.0 / (1.0 + np.exp(-k * z_score))
+        raw = 1.0 / (1.0 + np.exp(-k * z_score))
+        return float(np.clip(raw, self.LIKELIHOOD_MIN, self.LIKELIHOOD_MAX))
     
     def _get_late_night_multiplier(self, hour: int) -> float:
         """
@@ -466,7 +470,14 @@ class ImpulseInferenceEngine:
         scroll_likelihood = self._sigmoid_likelihood(scroll_z)
         arousal_likelihood = arousal
         click_likelihood = self._sigmoid_likelihood(click_z)
-        ttc_likelihood = self._calculate_ttc_likelihood(time_to_cart)
+        if 'time_to_cart' in self.baseline_data:
+            ttc_mean = self.baseline_data['time_to_cart']['mean']
+            ttc_std = self.baseline_data['time_to_cart']['std']
+            ttc_z = (ttc_mean - time_to_cart) / ttc_std if ttc_std else 0.0
+            ttc_likelihood = self._sigmoid_likelihood(ttc_z)
+        else:
+            ttc_z = None
+            ttc_likelihood = self._calculate_ttc_likelihood(time_to_cart)
         
         # Calculate weighted contributions
         contributions = {
@@ -498,7 +509,8 @@ class ImpulseInferenceEngine:
                     'heart_rate': float(hr_z),
                     'respiration_rate': float(rr_z),
                     'scroll_velocity': float(scroll_z),
-                    'click_rate': float(click_z)
+                    'click_rate': float(click_z),
+                    **({'time_to_cart': float(ttc_z)} if ttc_z is not None else {})
                 },
                 'likelihoods': {
                     'heart_rate': float(hr_likelihood),
