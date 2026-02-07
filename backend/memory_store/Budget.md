@@ -2,14 +2,10 @@
 
 ## Monthly Spending Limits
 - Discretionary: $500/month
-- Large Purchase Threshold: $149
 
 ## Current Month
 - Spent: $0
 - Remaining: $500
 
-## User Settings
-- Sensitivity: medium (Balanced intervention)
-
 ## Last Updated
-- 2026-02-01 11:28:15
+- 2026-02-07 15:41:41

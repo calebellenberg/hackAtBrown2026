@@ -28,15 +28,14 @@ load_dotenv(dotenv_path=env_path)
 app = FastAPI(
     title="ImpulseGuard Slow Brain API",
     description="RAG-based reasoning engine for purchase analysis",
-    version="1.0.0"
+    version="2.1.0"
 )
 
 # CORS middleware for browser extension
-# Allow chrome-extension:// origins and wildcard for development
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*", "chrome-extension://*"],  # Allows all origins including chrome-extension://
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -74,65 +73,48 @@ if VERTEX_SERVICE_ACCOUNT_PATH and os.path.exists(VERTEX_SERVICE_ACCOUNT_PATH):
 # Default baseline for users without calibration (used by Fast Brain)
 # Larger std = less trigger-happy: need bigger deviation from mean to drive high likelihood
 DEFAULT_BASELINE = {
-    # Biometrics (user baseline) — wider std so normal variation doesn't flag as impulsive
-    "heart_rate": {"mean": 67.0, "std": 22.0},
-    "respiration_rate": {"mean": 10.0, "std": 6.5},
-    
+    # BIOMETRICS_DISABLED: HR and RR baselines kept for backward compatibility but not used
+    # # Biometrics (user baseline) — wider std so normal variation doesn't flag as impulsive
+    # "heart_rate": {"mean": 67.0, "std": 22.0},
+    # "respiration_rate": {"mean": 10.0, "std": 6.5},
+
     # Behavioral telemetry — wide stds so z-scores stay in ~0–2.5 range
     "scroll_velocity": {"mean": 600.0, "std": 5500.0},
     "click_rate": {"mean": 0.15, "std": 1.0},
-    
+
     # time_on_site: seconds (used for compatibility; TTC used for impulse)
     "time_on_site": {"mean": 180.0, "std": 110.0},
-    
+
     # time_to_cart: baseline 2.5s; only very fast TTC is strongly impulsive
     "time_to_cart": {"mean": 2.5, "std": 32.0}
 }
 
-# Placeholder biometrics (fallback when persage unavailable)
-DEFAULT_BIOMETRICS = {
-    "heart_rate": 67.0,        # Match baseline mean for neutral Z-score
-    "respiration_rate": 10.0,  # Match baseline mean for neutral Z-score
-    "emotion_arousal": 0.5     # Neutral arousal level
-}
+# BIOMETRICS_DISABLED: Presage vitals no longer fetched
+# # Placeholder biometrics (fallback when persage unavailable)
+# DEFAULT_BIOMETRICS = {
+#     "heart_rate": 67.0,        # Match baseline mean for neutral Z-score
+#     "respiration_rate": 10.0,  # Match baseline mean for neutral Z-score
+#     "emotion_arousal": 0.5     # Neutral arousal level
+# }
 
-PERSAGE_VITALS_URL = os.getenv("PERSAGE_VITALS_URL", "http://localhost:8766/vitals")
-
-
-async def get_current_biometrics() -> dict:
-    """Fetch real-time vitals from persage service for pipeline analysis."""
-    try:
-        async with httpx.AsyncClient(timeout=2.0) as client:
-            resp = await client.get(PERSAGE_VITALS_URL)
-            if resp.status_code == 200:
-                data = resp.json()
-                return {
-                    "heart_rate": float(data.get("heart_rate", 75.0)),
-                    "respiration_rate": float(data.get("respiration_rate", 16.0)),
-                    "emotion_arousal": DEFAULT_BIOMETRICS["emotion_arousal"],
-                }
-    except Exception as e:
-        print(f"[Vitals] Could not fetch from persage: {e}")
-    return DEFAULT_BIOMETRICS.copy()
-
-PERSAGE_VITALS_URL = os.getenv("PERSAGE_VITALS_URL", "http://localhost:8766/vitals")
+# PERSAGE_VITALS_URL = os.getenv("PERSAGE_VITALS_URL", "http://localhost:8766/vitals")
 
 
-async def get_current_biometrics() -> dict:
-    """Fetch real-time vitals from persage service for pipeline analysis."""
-    try:
-        async with httpx.AsyncClient(timeout=2.0) as client:
-            resp = await client.get(PERSAGE_VITALS_URL)
-            if resp.status_code == 200:
-                data = resp.json()
-                return {
-                    "heart_rate": float(data.get("heart_rate", 75.0)),
-                    "respiration_rate": float(data.get("respiration_rate", 16.0)),
-                    "emotion_arousal": DEFAULT_BIOMETRICS["emotion_arousal"],
-                }
-    except Exception as e:
-        print(f"[Vitals] Could not fetch from persage: {e}")
-    return DEFAULT_BIOMETRICS.copy()
+# async def get_current_biometrics() -> dict:
+#     """Fetch real-time vitals from persage service for pipeline analysis."""
+#     try:
+#         async with httpx.AsyncClient(timeout=2.0) as client:
+#             resp = await client.get(PERSAGE_VITALS_URL)
+#             if resp.status_code == 200:
+#                 data = resp.json()
+#                 return {
+#                     "heart_rate": float(data.get("heart_rate", 75.0)),
+#                     "respiration_rate": float(data.get("respiration_rate", 16.0)),
+#                     "emotion_arousal": DEFAULT_BIOMETRICS["emotion_arousal"],
+#                 }
+#     except Exception as e:
+#         print(f"[Vitals] Could not fetch from persage: {e}")
+#     return DEFAULT_BIOMETRICS.copy()
 
 # Initialize Fast Brain inference engine
 fast_brain = ImpulseInferenceEngine(baseline_data=DEFAULT_BASELINE, prior_p=0.2)
@@ -234,8 +216,8 @@ async def root():
     """Root endpoint."""
     return {
         "message": "ImpulseGuard API",
-        "version": "2.0.0",
-        "endpoints": ["/pipeline-analyze", "/analyze", "/sync-memory", "/gemini-analyze"],
+        "version": "2.1.0",
+        "endpoints": ["/pipeline-analyze", "/analyze", "/sync-memory", "/consolidate-memory", "/gemini-analyze"],
         "fast_brain_available": fast_brain is not None,
         "slow_brain_available": memory_engine is not None
     }
@@ -673,7 +655,7 @@ MEMORY_TEMPLATES = {
 ## Financial Goals
 - [ ] Set your savings goals here
 
-## Personal Goals
+## Personal Goals & Aspirations
 - [ ] Reduce impulse purchases
 - [ ] Build better spending habits
 
@@ -683,6 +665,9 @@ MEMORY_TEMPLATES = {
     "Behavior.md": """# Spending Patterns
 
 ## Observed Behaviors
+- [No patterns recorded yet]
+
+## Spending Patterns
 - [No patterns recorded yet]
 
 ## High-Risk Triggers
@@ -697,7 +682,8 @@ MEMORY_TEMPLATES = {
 """,
     "State.md": """# Current Financial State
 
-## Wealth Status
+## Financial Overview
+- Dedicated savings for fun purchases: $[AMOUNT]
 - Savings Account: $[AMOUNT]
 - Checking Account: $[AMOUNT]
 - Monthly Income: $[AMOUNT]
@@ -818,6 +804,57 @@ async def health_check():
     }
 
 
+class ConsolidateMemoryResponse(BaseModel):
+    """Response model for /consolidate-memory endpoint."""
+    status: str = Field(..., description="Overall status of the operation")
+    results: Dict[str, Any] = Field(..., description="Consolidation results per file")
+    message: str = Field(..., description="Summary message")
+
+
+@app.post("/consolidate-memory", response_model=ConsolidateMemoryResponse)
+async def consolidate_memory() -> ConsolidateMemoryResponse:
+    """
+    Consolidate memory files that have grown too large.
+
+    This endpoint checks each memory file and uses Gemini to consolidate/deduplicate
+    entries in files that exceed size (>2KB) or observation (>10) thresholds.
+
+    Use this endpoint periodically for maintenance or when memory files become bloated.
+
+    Returns:
+        Consolidation results for each file including size reduction stats
+    """
+    if not memory_engine:
+        return ConsolidateMemoryResponse(
+            status="error",
+            results={},
+            message="Memory engine not available"
+        )
+
+    try:
+        results = await memory_engine.consolidate_memory()
+
+        # Count consolidated files
+        consolidated_count = sum(1 for r in results.values() if r.get('status') == 'consolidated')
+        skipped_count = sum(1 for r in results.values() if r.get('status') == 'skipped')
+        error_count = sum(1 for r in results.values() if r.get('status') == 'error')
+
+        message = f"Consolidated {consolidated_count} files, skipped {skipped_count}, errors {error_count}"
+
+        return ConsolidateMemoryResponse(
+            status="success" if error_count == 0 else "partial",
+            results=results,
+            message=message
+        )
+
+    except Exception as e:
+        print(f"[Consolidate] Error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error consolidating memory: {str(e)}"
+        )
+
+
 # ===================== PIPELINE ANALYZE ENDPOINT =====================
 
 @app.post("/pipeline-analyze", response_model=PipelineResponse)
@@ -838,22 +875,24 @@ async def pipeline_analyze(request: PipelineRequest) -> PipelineResponse:
         Combined Fast Brain + Slow Brain analysis with intervention action
     """
     try:
-        # Step 1: Fetch real vitals from persage (or fallback to defaults)
-        biometrics = await get_current_biometrics()
-        
+        # BIOMETRICS_DISABLED: No longer fetching vitals from persage
+        # # Step 1: Fetch real vitals from persage (or fallback to defaults)
+        # biometrics = await get_current_biometrics()
+
         # Calculate derived telemetry values
         # Click rate: clicks per second (avoid division by zero)
         click_rate_calculated = request.click_count / max(request.time_on_site, 1.0)
-        
+
         # Time to cart: use provided value or fallback to time_on_site
         time_to_cart_value = request.time_to_cart if request.time_to_cart is not None else request.time_on_site
-        
+
         # Step 2: Prepare Fast Brain input data
+        # BIOMETRICS_DISABLED: HR and RR removed, emotion_arousal set to neutral 0.5
         current_data = {
-            "heart_rate": biometrics["heart_rate"],
-            "respiration_rate": biometrics["respiration_rate"],
-            "emotion_arousal": biometrics["emotion_arousal"],
-            
+            # "heart_rate": biometrics["heart_rate"],
+            # "respiration_rate": biometrics["respiration_rate"],
+            "emotion_arousal": 0.5,  # Neutral arousal level (BIOMETRICS_DISABLED)
+
             # Real telemetry from browser extension
             "click_rate": click_rate_calculated,  # clicks per second
             "time_on_site": request.time_on_site,
@@ -861,7 +900,7 @@ async def pipeline_analyze(request: PipelineRequest) -> PipelineResponse:
             "scroll_velocity_peak": request.peak_scroll_velocity,
             "system_hour": request.system_hour,
             "system_time": request.system_hour,  # inference_engine expects this key
-            
+
             # Website context
             "website_name": request.website
         }
@@ -902,9 +941,9 @@ async def pipeline_analyze(request: PipelineRequest) -> PipelineResponse:
                     "click_rate": click_rate_calculated,
                     "peak_scroll_velocity": request.peak_scroll_velocity,
                     "click_count": request.click_count,
-                    # Real-time vitals (e.g. hyperventilation / elevated stress)
-                    "heart_rate": biometrics["heart_rate"],
-                    "respiration_rate": biometrics["respiration_rate"],
+                    # BIOMETRICS_DISABLED: Real-time vitals no longer sent to Slow Brain
+                    # "heart_rate": biometrics["heart_rate"],
+                    # "respiration_rate": biometrics["respiration_rate"],
                 }
                 
                 slow_brain_result = await memory_engine.analyze_purchase(
@@ -933,14 +972,7 @@ async def pipeline_analyze(request: PipelineRequest) -> PipelineResponse:
                 # Fall through to Fast Brain only response
         
         # Fallback: Fast Brain only (Slow Brain unavailable)
-        # Map Fast Brain intervention to Slow Brain format
-        intervention_mapping = {
-            "NONE": "NONE",
-            "NUDGE": "MIRROR",
-            "CHALLENGE": "COOLDOWN",
-            "LOCKOUT": "PHRASE"
-        }
-        
+        # Fast Brain now uses same naming as Slow Brain: NONE/MIRROR/COOLDOWN/PHRASE
         return PipelineResponse(
             p_impulse_fast=p_impulse_fast,
             fast_brain_intervention=fast_intervention,
@@ -948,7 +980,7 @@ async def pipeline_analyze(request: PipelineRequest) -> PipelineResponse:
             impulse_score=p_impulse_fast,  # Use Fast Brain score directly
             confidence=0.5,  # Medium confidence without Slow Brain
             reasoning=f"Fast Brain analysis only. Score based on {dominant_trigger}. Slow Brain unavailable.",
-            intervention_action=intervention_mapping.get(fast_intervention, "MIRROR"),
+            intervention_action=fast_intervention,  # No mapping needed - names now match
             memory_update=None
         )
         
@@ -957,7 +989,7 @@ async def pipeline_analyze(request: PipelineRequest) -> PipelineResponse:
         # Complete fallback
         return PipelineResponse(
             p_impulse_fast=0.5,
-            fast_brain_intervention="NUDGE",
+            fast_brain_intervention="MIRROR",
             fast_brain_dominant_trigger="error",
             impulse_score=0.5,
             confidence=0.3,
@@ -1070,11 +1102,14 @@ class GeminiClient:
 
 # Initialize Gemini client
 gemini_client = None
-try:
-    gemini_client = GeminiClient(VERTEX_SERVICE_ACCOUNT_PATH)
-    print("Gemini client initialized successfully")
-except Exception as e:
-    print(f"Warning: Could not initialize Gemini client: {e}")
+if VERTEX_SERVICE_ACCOUNT_PATH and os.path.exists(VERTEX_SERVICE_ACCOUNT_PATH):
+    try:
+        gemini_client = GeminiClient(VERTEX_SERVICE_ACCOUNT_PATH)
+        print("Gemini client initialized successfully")
+    except Exception as e:
+        print(f"Warning: Could not initialize Gemini client: {e}")
+else:
+    print("WARNING: Gemini client not initialized (no service account path)")
 
 
 def build_gemini_prompt(request: GeminiAnalyzeRequest) -> str:

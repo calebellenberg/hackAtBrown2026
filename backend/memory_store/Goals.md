@@ -3,11 +3,9 @@
 ## Financial Goals
 - [ ] Set your savings goals here
 
-## Personal Aspirations
-- Run a marathon (actively pursuing, purchased running shoes)
-
-## Personal Goals
-- [ ] Build better spending habits (e.g., purposeful purchases for aspirations)
+## Personal Goals & Aspirations
+- [ ] Reduce impulse purchases
+- [ ] Build better spending habits
 
 ## Last Updated
-- 2026-02-01 11:28:55
+- 2026-02-07 15:41:41

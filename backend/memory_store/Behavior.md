@@ -1,7 +1,10 @@
 # Spending Patterns
 
 ## Observed Behaviors
-- Shows a pattern of extremely rapid decision-making for purchases (e.g., quick time to cart/site, high scroll/click rate), indicating a tendency for impulse buys.
+- User exhibits impulsive browsing and quick purchase decisions for items with unclear utility, even outside of previously noted high-risk triggers like late-night or flash sales.
+
+## Spending Patterns
+- User exhibits impulsive browsing and quick purchase decisions for items with unclear utility, even outside of previously noted high-risk triggers like late-night or flash sales.
 
 ## High-Risk Triggers
 - Late night shopping (after 11 PM)
@@ -11,4 +14,4 @@
 - [None recorded yet]
 
 ## Last Updated
-- 2026-02-01 11:00:36
+- 2026-02-07 15:44:41

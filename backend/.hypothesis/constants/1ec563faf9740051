@@ -1,0 +1,4 @@
+# file: /Users/sanildesai/Documents/CodeProjects/hackAtBrown2026/backend/inference_engine.py
+# hypothesis_version: 6.151.5
+
+[0.0, 0.05, 0.1, 0.11, 0.15, 0.19, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.85, 0.88, 1.0, 1.5, 2.0, 300.0, 300, 'COOLDOWN', 'MIRROR', 'NONE', 'PHRASE', 'adidas', 'aliexpress', 'amazon', 'bestbuy', 'bet', 'casino', 'click_rate', 'context_factors', 'costco', 'countdown', 'course', 'dominant_trigger', 'ebay', 'edu', 'educational', 'emotion_arousal', 'etsy', 'flash', 'flash_sale', 'gambling', 'homedepot', 'ikea', 'inf', 'kohls', 'learn', 'likelihoods', 'limited time', 'logic_summary', 'lottery', 'lowes', 'macys', 'mean', 'newegg', 'nike', 'nonprofit', 'p_impulse', 'poker', 'sale ends', 'school', 'scroll_velocity', 'scroll_velocity_peak', 'shein', 'std', 'system_time', 'target', 'temu', 'time_on_site', 'time_to_cart', 'university', 'validation', 'walmart', 'wayfair', 'website_name', 'website_risk_factor', 'z_scores', 'zappos']

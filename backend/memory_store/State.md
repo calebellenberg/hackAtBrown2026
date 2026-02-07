@@ -1,6 +1,7 @@
 # Current Financial State
 
-## Wealth Status
+## Financial Overview
+- Dedicated savings for fun purchases: $[AMOUNT]
 - Savings Account: $[AMOUNT]
 - Checking Account: $[AMOUNT]
 - Monthly Income: $[AMOUNT]
@@ -9,4 +10,4 @@
 - [No recent changes]
 
 ## Last Updated
-- 2026-02-01 10:59:41
+- 2026-02-07 15:41:41

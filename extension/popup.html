@@ -146,7 +146,7 @@
       .hidden {
         display: none !important;
       }
-      /* Camera + Persage vitals */
+      /* BIOMETRICS_DISABLED: Vitals CSS commented out
       .live-section {
         background: var(--panel);
         border-radius: 10px;
@@ -191,13 +191,14 @@
       }
       .vitals-status.connected { color: #00ff88; }
       .vitals-status.disconnected { color: var(--stop-red); }
+      */
     </style>
   </head>
   <body>
     <img src="icon.png" alt="Stopify" class="logo" />
     <h3 class="title">Stopify</h3>
 
-    <!-- Persage vitals (from broker) -->
+    <!-- BIOMETRICS_DISABLED: Persage vitals section commented out
     <div class="live-section">
       <h4>Live</h4>
       <div class="vitals-row">
@@ -212,6 +213,7 @@
       </div>
       <div id="vitals-status" class="vitals-status disconnected">Vitals: connecting…</div>
     </div>
+    -->
 
     <!-- First-time setup / Edit preferences form -->
     <div id="prefs-setup" class="prefs-form hidden">

@@ -3,9 +3,7 @@
   "name": "Stopify",
   "version": "1.0",
   "host_permissions": [
-    "http://localhost:8766/*",
     "http://localhost:8000/*",
-    "http://172.26.57.128:8766/*",
     "http://172.26.57.128:8000/*"
   ],
   "icons": {
@@ -21,45 +19,7 @@
   "content_scripts": [
     {
       "matches": [
-        "*://*.amazon.com/*",
-        "*://*.ebay.com/*",
-        "*://*.walmart.com/*",
-        "*://*.target.com/*",
-        "*://*.bestbuy.com/*",
-        "*://*.etsy.com/*",
-        "*://*.aliexpress.com/*",
-        "*://*.temu.com/*",
-        "*://*.costco.com/*",
-        "*://*.wayfair.com/*",
-        "*://*.macys.com/*",
-        "*://*.kohls.com/*",
-        "*://*.newegg.com/*",
-        "*://*.zappos.com/*",
-        "*://*.nike.com/*",
-        "*://*.adidas.com/*",
-        "*://*.shein.com/*",
-        "*://*.homedepot.com/*",
-        "*://*.lowes.com/*",
-        "*://*.ikea.com/*",
-        "*://*.bet365.com/*",
-        "*://*.draftkings.com/*",
-        "*://*.fanduel.com/*",
-        "*://*.williamhill.com/*",
-        "*://*.betfair.com/*",
-        "*://*.paddypower.com/*",
-        "*://*.unibet.com/*",
-        "*://*.888casino.com/*",
-        "*://*.betsson.com/*",
-        "*://*.bovada.lv/*",
-        "*://*.sportsbet.com.au/*",
-        "*://*.skybet.com/*",
-        "*://*.ladbrokes.com/*",
-        "*://*.partypoker.com/*",
-        "*://*.grosvenorcasinos.com/*",
-        "*://*.caesars.com/*",
-        "*://*.betway.com/*",
-        "*://*.betmgm.com/*",
-        "*://*.pointsbet.com/*"
+        "<all_urls>"
       ],
       "css": [
         "styles.css"
@@ -77,45 +37,7 @@
         "gambling_sites.json"
       ],
       "matches": [
-        "*://*.amazon.com/*",
-        "*://*.ebay.com/*",
-        "*://*.walmart.com/*",
-        "*://*.target.com/*",
-        "*://*.bestbuy.com/*",
-        "*://*.etsy.com/*",
-        "*://*.aliexpress.com/*",
-        "*://*.temu.com/*",
-        "*://*.costco.com/*",
-        "*://*.wayfair.com/*",
-        "*://*.macys.com/*",
-        "*://*.kohls.com/*",
-        "*://*.newegg.com/*",
-        "*://*.zappos.com/*",
-        "*://*.nike.com/*",
-        "*://*.adidas.com/*",
-        "*://*.shein.com/*",
-        "*://*.homedepot.com/*",
-        "*://*.lowes.com/*",
-        "*://*.ikea.com/*",
-        "*://*.bet365.com/*",
-        "*://*.draftkings.com/*",
-        "*://*.fanduel.com/*",
-        "*://*.williamhill.com/*",
-        "*://*.betfair.com/*",
-        "*://*.paddypower.com/*",
-        "*://*.unibet.com/*",
-        "*://*.888casino.com/*",
-        "*://*.betsson.com/*",
-        "*://*.bovada.lv/*",
-        "*://*.sportsbet.com.au/*",
-        "*://*.skybet.com/*",
-        "*://*.ladbrokes.com/*",
-        "*://*.partypoker.com/*",
-        "*://*.grosvenorcasinos.com/*",
-        "*://*.caesars.com/*",
-        "*://*.betway.com/*",
-        "*://*.betmgm.com/*",
-        "*://*.pointsbet.com/*"
+        "<all_urls>"
       ]
     }
   ]

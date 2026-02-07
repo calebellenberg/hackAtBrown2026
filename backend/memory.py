@@ -26,103 +26,141 @@ class MemoryEngine:
     with service account authentication, and self-refining memory updates to Markdown files.
     """
     
-    SYSTEM_INSTRUCTION = """You are the user's 'Digital Prefrontal Cortex' - a deliberate, context-aware reasoning system that OVERRIDES the Fast Brain's reflexive impulse assessment based on PRODUCT TYPE and USER CONTEXT.
+    SYSTEM_INSTRUCTION = """You are the user's 'Digital Prefrontal Cortex' - a deliberate, context-aware reasoning system that evaluates purchases based on GENUINE UTILITY and USER CONTEXT.
 
-## CRITICAL: DEEP CONTEXT UNDERSTANDING (MANDATORY FIRST STEP)
+## CRITICAL: UTILITY EVALUATION (MANDATORY FIRST STEP)
 
-Before making ANY score adjustments, you MUST:
-1. **READ AND UNDERSTAND** all memory files completely - do not skim
-2. **IDENTIFY GOAL ALIGNMENT**: Does this purchase support or advance the user's stated goals?
-   - If user wants to run a marathon → running shoes = GOAL-ALIGNED (significantly reduce score)
-   - If user wants to save money → luxury items = GOAL-CONFLICT (increase score)
-   - If user has a fitness goal → gym equipment = GOAL-ALIGNED (reduce score)
-3. **UNDERSTAND NUANCES**: A purchase that seems expensive might be necessary for a goal
-4. **CONSIDER CONTEXT**: What is the user trying to achieve? Does this purchase help or hinder?
+Before making ANY score adjustments, you MUST evaluate the UTILITY of this purchase:
 
-## PRODUCT RISK CATEGORIES (Guidance, not rigid rules)
+### What is Utility?
+Utility means the item serves a **genuine practical purpose** in the user's life. Ask yourself:
+- Does this item solve a real problem the user has?
+- Does this item fulfill a legitimate need (professional, personal, health, safety)?
+- Would a reasonable person in this user's situation need this item?
 
-**LOW RISK**: Household essentials and necessities
-- Examples: spoons, utensils, soap, towels, toilet paper, cleaning supplies, groceries, food, basic clothing
-- These items are practical needs - late-night purchase of essentials is NOT impulsive
-- BUT: If aligned with goals (e.g., running shoes for marathon training), treat as goal-aligned, not just "low risk"
+### Utility Categories (evaluate honestly)
 
-**MEDIUM RISK**: Discretionary but practical items
-- Examples: books, electronics, hobby supplies, regular clothing, home decor
-- Evaluate based on budget, goals, and context - not just product type
+**STRONG UTILITY (reduce score significantly: -0.3 to -0.5)**
+- Professional necessities: dress shoes for work, business attire for interviews, laptop for job
+- Health/safety needs: medications, safety equipment, ergonomic furniture for chronic pain
+- Essential replacements: broken appliance, worn-out shoes that are primary pair
+- Goal-aligned tools: running shoes for marathon training, camera for photography career
+- Problem-solving: item directly addresses a stated problem or need in memory files
 
-**HIGH RISK**: Luxury, entertainment, and impulse-prone categories
-- Examples: gaming consoles, luxury fashion, collectibles, gambling, flash sales, "limited time" deals
-- Keywords that signal HIGH RISK: "deal", "sale", "limited", "exclusive", "last chance"
-- Gambling sites = ALWAYS high risk
-- BUT: Even "high risk" items can be justified if they align with goals and budget
+**MODERATE UTILITY (reduce score: -0.15 to -0.25)**
+- Quality upgrades: replacing functional but degraded items (old mattress, worn clothing)
+- Seasonal necessities: winter coat before winter, umbrella during rainy season
+- Hobby equipment: tools for established hobbies (not new impulse hobbies)
+- Home improvement: functional improvements (not purely decorative)
+
+**WEAK/NO UTILITY (no reduction or INCREASE score)**
+- Duplicate items: buying similar item to one already owned
+- Impulse categories: collectibles, limited editions, flash sales, "deals"
+- Pure entertainment: gaming, streaming, toys (unless gift or established hobby)
+- Status/vanity: luxury items primarily for appearance/status, not function
+- Rationalized wants: "I might need this someday" or "it's a good deal"
+
+### CRITICAL UTILITY QUESTIONS
+
+1. **The Replacement Test**: Is this replacing something broken/worn, or adding to existing items?
+   - Replacing broken dress shoes = HIGH utility
+   - Buying 5th pair of sneakers = LOW utility
+
+2. **The Necessity Test**: Would the user's life be significantly worse without this item?
+   - Need dress shoes for job interview tomorrow = HIGH utility
+   - Want dress shoes because they look nice = LOW utility
+
+3. **The Timing Test**: Is there urgency, or is this "want it now" impulse?
+   - Winter coat in October when old one is torn = HIGH utility
+   - Winter coat in July because it's on sale = LOW utility (impulse triggered by sale)
+
+4. **The Specificity Test**: Does the user need THIS specific item, or is the category browsing?
+   - Researched specific running shoe model for flat feet = HIGH utility
+   - Browsing "shoes" and found these look cool = LOW utility
 
 ## REASONING PRIORITY (in order of importance)
 
-1. **GOAL ALIGNMENT** (HIGHEST PRIORITY): 
-   - Does this purchase support the user's stated goals? 
-   - If YES → Make a SIGNIFICANT negative adjustment (can be large, not limited)
-   - If NO → Consider if it conflicts (positive adjustment)
-   - Example: Running shoes for marathon goal = large negative adjustment regardless of price
+1. **UTILITY EVALUATION** (HIGHEST PRIORITY):
+   - Apply the utility tests above FIRST
+   - Strong utility = significant negative adjustment (-0.3 to -0.5)
+   - Weak/no utility = no reduction or positive adjustment (+0.1 to +0.3)
+   - BE SKEPTICAL: Most purchases people make are wants, not needs
 
-2. **BUDGET VIOLATION**: 
-   - Does this exceed stated limits? 
-   - If yes → Positive adjustment (can be significant if major violation)
+2. **GOAL ALIGNMENT**:
+   - Does this purchase support the user's stated goals in Goals.md?
+   - If YES AND has utility → compound the negative adjustment
+   - If YES but weak utility → modest negative adjustment only
+   - Example: Dress shoes for marathon runner with no job interviews = low utility despite being "nice to have"
 
-3. **GOAL CONFLICT**: 
-   - Does this contradict stated savings goals or objectives?
-   - If yes → Positive adjustment
+3. **BUDGET CONSTRAINTS**:
+   - Does this exceed stated limits in Budget.md?
+   - High utility items can still violate budget = modest positive adjustment
+   - Low utility + over budget = strong positive adjustment
 
-4. **PRODUCT CONTEXT**: 
-   - Is this a necessary tool for a goal? (e.g., running shoes for marathon)
-   - Is this a luxury item with no goal alignment?
-   - Adjust accordingly based on context, not rigid tiers
+4. **IMPULSE INDICATORS**:
+   - Sale/deal language in product name = +0.1 to +0.2 (scarcity triggers impulse)
+   - Late night (11 PM - 5 AM) + low utility = +0.1 to +0.2
+   - Very fast time-to-cart (<30s) + low utility = +0.1 (didn't research)
+   - High scroll velocity + fast decision = browsing/impulse pattern
 
-5. **USER PREFERENCES**: 
-   - Has user shown comfort with this type of purchase? (check Behavior.md)
-   - Adjust based on past patterns
+5. **BEHAVIORAL PATTERNS** (from Behavior.md):
+   - Has user shown this is an established need/pattern?
+   - Or is this a new category (potential impulse exploration)?
 
-6. **TIME OF DAY**: 
-   - Late night (11 PM - 5 AM) can indicate impulsivity
-   - BUT: If purchase aligns with goals, time of day matters less
-   - CRITICAL: Late-night purchase of goal-aligned items should NOT be penalized
+## LUXURY AND HIGH-PRICED ITEMS
 
-## MEMORY-BASED REASONING (MANDATORY)
+**IMPORTANT**: Price alone does NOT determine utility.
 
-You MUST cite specific information from the user's memory files:
-- Goals.md: "This purchase aligns with your goal to [goal]" OR "This conflicts with your goal to [goal]"
-- Budget.md: "This exceeds your $X/month limit" OR "This fits within your budget"
-- Behavior.md: "You've previously shown comfort with $X purchases in this category"
-- State.md: "Based on your current financial state..."
+- $200 dress shoes for daily work use = HIGH utility (amortized cost is low)
+- $200 dress shoes as 4th pair "for variety" = LOW utility
+- $500 espresso machine for daily coffee drinker = MODERATE utility
+- $500 espresso machine impulse buy = LOW utility
 
-**CRITICAL**: When you see a goal in Goals.md, actively check if the purchase supports that goal. If it does, this is a STRONG reason to reduce the impulse score significantly.
+**Ask**: Is this a NEED at this price point, or is the price itself part of the appeal (status/luxury)?
 
-## SCORE ADJUSTMENT PHILOSOPHY
+## SCORE CALCULATION
 
-- **NO RIGID LIMITS**: You are an executive decision-maker. Make adjustments that make sense contextually
-- **GOAL ALIGNMENT IS POWERFUL**: If a purchase clearly supports a goal, you can make large negative adjustments (even -0.4 or more if strongly aligned)
-- **CONTEXT OVER RULES**: Understand the full context before applying any adjustments
-- **NUANCE MATTERS**: A $150 running shoe for marathon training is different from a $150 impulse fashion purchase
+Start with Fast Brain score, then apply adjustments:
+
+| Factor | Adjustment |
+|--------|------------|
+| Strong utility | -0.3 to -0.5 |
+| Moderate utility | -0.15 to -0.25 |
+| Weak/no utility | 0 to +0.2 |
+| Goal-aligned + utility | Additional -0.1 to -0.2 |
+| Budget violation | +0.1 to +0.3 |
+| Sale/deal trigger | +0.1 to +0.2 |
+| Late night + low utility | +0.1 to +0.2 |
+| Fast decision + low utility | +0.1 |
+
+**Final score MUST be in range [0.0, 1.0]**
 
 ## INTERVENTION THRESHOLDS
 
 - impulse_score < 0.50: "NONE" (allow purchase)
 - impulse_score 0.50-0.70: "MIRROR" (gentle reflection)
 - impulse_score 0.70-0.85: "COOLDOWN" (wait period)
-- impulse_score > 0.85: "PHRASE" (REQUIRED - never use NONE/MIRROR)
+- impulse_score > 0.85: "PHRASE" (strong intervention required)
+
+## REASONING OUTPUT REQUIREMENTS
+
+Your reasoning MUST include:
+1. Explicit utility evaluation: "This item has [STRONG/MODERATE/WEAK] utility because..."
+2. Citation from memory files if relevant
+3. Clear score adjustment logic
+
+Example good reasoning:
+- "STRONG utility: Dress shoes needed for upcoming job interviews (Goals.md mentions job search). Replacing worn pair. Score reduced significantly."
+- "WEAK utility: Fourth pair of sneakers when user owns 3 similar pairs (Behavior.md). Sale price is triggering impulse. Score increased."
 
 ## MEMORY UPDATE REQUIREMENTS
 
-After each analysis, generate a memory_update ONLY if there is genuinely NEW or REFINED information:
-- Spending preferences: "User is comfortable spending $X on [category]"
-- New patterns: "User tends to purchase [type] at [time]"
-- Risk observations: "User shows [pattern] that may indicate [behavior]"
-- Goal-aligned purchases: "User purchased [item] which aligns with goal to [goal]"
+Generate memory_update ONLY for genuinely new information:
+- New utility patterns: "User has established need for [category] due to [reason]"
+- Spending comfort levels: "User comfortable with $X for [category] purchases"
+- Impulse triggers: "User susceptible to [sale/late night/category] impulse purchases"
 
-IMPORTANT: 
-- Do NOT record every single purchase - only record when patterns emerge or preferences are established
-- If this purchase matches existing patterns, set memory_update to null
-- Be concise - memory files should stay short and focused on key patterns, not exhaustive logs
-Set to null if no new information or if this matches existing patterns."""
+Set to null if no new patterns emerge or this matches existing behavior."""
 
     VERTEX_AI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
     
@@ -317,14 +355,20 @@ Set to null if no new information or if this matches existing patterns."""
         
         raise last_exception if last_exception else Exception("Failed to call Vertex AI API")
     
+    # Maximum characters per chunk to prevent oversized embeddings
+    MAX_CHUNK_SIZE = 500
+
     def _chunk_markdown(self, content: str, file_name: str) -> List[Dict[str, Any]]:
         """
         Split Markdown content into embeddable chunks.
-        
+
+        Chunks are split by section headers, then further split if they exceed
+        MAX_CHUNK_SIZE to ensure efficient embedding and retrieval.
+
         Args:
             content: Markdown file content
             file_name: Name of the source file
-            
+
         Returns:
             List of chunk dictionaries with content and metadata
         """
@@ -332,36 +376,64 @@ Set to null if no new information or if this matches existing patterns."""
         lines = content.split('\n')
         current_chunk = []
         current_section = "Introduction"
-        
+
+        def add_chunk(text: str, section: str):
+            """Add chunk, splitting if it exceeds MAX_CHUNK_SIZE."""
+            text = text.strip()
+            if not text:
+                return
+
+            if len(text) <= self.MAX_CHUNK_SIZE:
+                chunks.append({
+                    'content': text,
+                    'file': file_name,
+                    'section': section
+                })
+            else:
+                # Split large chunks by lines, respecting MAX_CHUNK_SIZE
+                chunk_lines = text.split('\n')
+                sub_chunk = []
+                sub_chunk_len = 0
+                part_num = 1
+
+                for line in chunk_lines:
+                    line_len = len(line) + 1  # +1 for newline
+                    if sub_chunk_len + line_len > self.MAX_CHUNK_SIZE and sub_chunk:
+                        chunks.append({
+                            'content': '\n'.join(sub_chunk).strip(),
+                            'file': file_name,
+                            'section': f"{section} (part {part_num})"
+                        })
+                        sub_chunk = []
+                        sub_chunk_len = 0
+                        part_num += 1
+                    sub_chunk.append(line)
+                    sub_chunk_len += line_len
+
+                if sub_chunk:
+                    chunks.append({
+                        'content': '\n'.join(sub_chunk).strip(),
+                        'file': file_name,
+                        'section': f"{section} (part {part_num})" if part_num > 1 else section
+                    })
+
         for line in lines:
             # Detect section headers
             if line.startswith('#'):
                 # Save previous chunk if it has content
                 if current_chunk:
-                    chunk_text = '\n'.join(current_chunk).strip()
-                    if chunk_text:
-                        chunks.append({
-                            'content': chunk_text,
-                            'file': file_name,
-                            'section': current_section
-                        })
+                    add_chunk('\n'.join(current_chunk), current_section)
                     current_chunk = []
-                
+
                 # Extract section name
                 current_section = line.lstrip('#').strip()
             else:
                 current_chunk.append(line)
-        
+
         # Add final chunk
         if current_chunk:
-            chunk_text = '\n'.join(current_chunk).strip()
-            if chunk_text:
-                chunks.append({
-                    'content': chunk_text,
-                    'file': file_name,
-                    'section': current_section
-                })
-        
+            add_chunk('\n'.join(current_chunk), current_section)
+
         return chunks
     
     async def reindex_memory(self) -> bool:
@@ -435,24 +507,25 @@ Set to null if no new information or if this matches existing patterns."""
     
     async def retrieve_context(self, query: str, n_results: int = 3) -> List[Dict[str, Any]]:
         """
-        Retrieve context from memory files.
-        
-        IMPORTANT: Always retrieves content from ALL 4 memory files to ensure
-        complete context is available for reasoning. Also includes similarity-based
-        retrieval for additional relevant snippets.
-        
+        Retrieve context from memory files using query-aware retrieval.
+
+        Optimized retrieval strategy:
+        1. ALWAYS include Goals.md and Budget.md (critical for decision-making)
+        2. Use ChromaDB similarity search for Behavior.md and State.md chunks
+        3. This reduces context payload by 40-60% vs dumping all files
+
         Args:
             query: Query text (typically purchase data description)
-            n_results: Number of additional similarity results to include
-            
+            n_results: Number of similarity results to include for Behavior/State
+
         Returns:
-            List of relevant snippets with metadata (always includes all 4 files)
+            List of relevant snippets with metadata
         """
         snippets = []
-        
-        # Step 1: ALWAYS read ALL memory files directly (ensures complete context)
-        memory_files = ['Goals.md', 'Budget.md', 'State.md', 'Behavior.md']
-        for filename in memory_files:
+
+        # Step 1: ALWAYS read Goals.md and Budget.md directly (critical context)
+        critical_files = ['Goals.md', 'Budget.md']
+        for filename in critical_files:
             filepath = os.path.join(self.memory_dir, filename)
             if os.path.exists(filepath):
                 try:
@@ -467,20 +540,21 @@ Set to null if no new information or if this matches existing patterns."""
                             })
                 except Exception as e:
                     print(f"Error reading {filename}: {e}")
-        
-        # Step 2: Also do similarity search for additional relevant context
+
+        # Step 2: Use similarity search for Behavior.md and State.md chunks only
         try:
             if not self._indexed or self.collection.count() == 0:
                 await self.reindex_memory()
-            
+
+            # Query only Behavior.md and State.md chunks via similarity
             results = self.collection.query(
                 query_texts=[query],
-                n_results=n_results
+                n_results=n_results,
+                where={"file": {"$in": ["Behavior.md", "State.md"]}}
             )
-            
+
             if results['documents'] and len(results['documents']) > 0:
                 for i, doc in enumerate(results['documents'][0]):
-                    # Avoid duplicating content we already have from direct read
                     snippet = {
                         'content': doc,
                         'file': results['metadatas'][0][i].get('file', 'unknown'),
@@ -488,10 +562,27 @@ Set to null if no new information or if this matches existing patterns."""
                         'source': 'similarity_search'
                     }
                     snippets.append(snippet)
-            
+
         except Exception as e:
             print(f"Error in similarity search: {e}")
-        
+            # Fallback: read Behavior.md and State.md directly if similarity fails
+            fallback_files = ['Behavior.md', 'State.md']
+            for filename in fallback_files:
+                filepath = os.path.join(self.memory_dir, filename)
+                if os.path.exists(filepath):
+                    try:
+                        with open(filepath, 'r', encoding='utf-8') as f:
+                            content = f.read().strip()
+                            if content:
+                                snippets.append({
+                                    'content': content,
+                                    'file': filename,
+                                    'section': 'FULL FILE',
+                                    'source': 'fallback_read'
+                                })
+                    except Exception as read_e:
+                        print(f"Error reading {filename}: {read_e}")
+
         print(f"[Memory] Retrieved context from {len(snippets)} sources")
         return snippets
     
@@ -534,16 +625,17 @@ Set to null if no new information or if this matches existing patterns."""
             click_rate = purchase_data.get('click_rate', None)
             peak_scroll_velocity = purchase_data.get('peak_scroll_velocity', None)
             click_count = purchase_data.get('click_count', None)
-            heart_rate = purchase_data.get('heart_rate', None)
-            respiration_rate = purchase_data.get('respiration_rate', None)
-            
+            # BIOMETRICS_DISABLED: HR and RR no longer extracted
+            # heart_rate = purchase_data.get('heart_rate', None)
+            # respiration_rate = purchase_data.get('respiration_rate', None)
+
             # Build telemetry summary for prompt
+            # BIOMETRICS_DISABLED: Removed heart_rate and respiration_rate checks
             telemetry_summary = ""
-            if (time_to_cart is not None or click_rate is not None or peak_scroll_velocity is not None
-                    or heart_rate is not None or respiration_rate is not None):
+            if (time_to_cart is not None or click_rate is not None or peak_scroll_velocity is not None):
                 telemetry_summary = "\n## Behavioral Telemetry (for pattern learning)\n"
                 if time_to_cart is not None:
-                    telemetry_summary += f"- Time to Cart: {time_to_cart:.1f}s (very fast <30s = impulsive, slow >300s = deliberate)\n"
+                    telemetry_summary += f"- Time to Cart: {time_to_cart:.1f}s (under 5s = extremely impulsive, 5-30s = rapid, 30-120s = normal, >120s = deliberate)\n"
                 if time_on_site is not None:
                     telemetry_summary += f"- Time on Site: {time_on_site:.1f}s\n"
                 if click_rate is not None:
@@ -552,17 +644,15 @@ Set to null if no new information or if this matches existing patterns."""
                     telemetry_summary += f"- Peak Scroll Velocity: {peak_scroll_velocity:.1f} px/s (only \"high\" if >2000 px/s; 200–800 is moderate; peak can be one quick flick)\n"
                 if click_count is not None:
                     telemetry_summary += f"- Total Clicks: {click_count}\n"
-                if heart_rate is not None:
-                    telemetry_summary += f"- Heart Rate: {heart_rate:.0f} BPM (elevated >90 = stress/arousal; resting ~60-80)\n"
-                if respiration_rate is not None:
-                    telemetry_summary += f"- Respiration Rate: {respiration_rate:.1f} RPM (elevated >18-20 = possible hyperventilation/stress)\n"
+                # BIOMETRICS_DISABLED: HR and RR no longer included in telemetry summary
+                # if heart_rate is not None:
+                #     telemetry_summary += f"- Heart Rate: {heart_rate:.0f} BPM (elevated >90 = stress/arousal; resting ~60-80)\n"
+                # if respiration_rate is not None:
+                #     telemetry_summary += f"- Respiration Rate: {respiration_rate:.1f} RPM (elevated >18-20 = possible hyperventilation/stress)\n"
             
-            # Build prompt with emphasis on goal alignment and context understanding
-            prompt = f"""PURCHASE ANALYSIS REQUEST
-
-## Fast Brain Assessment
+            # Build streamlined prompt - detailed guidance is in SYSTEM_INSTRUCTION
+            prompt = f"""## Fast Brain Assessment
 - Initial Impulse Score: {p_impulse_fast:.3f}
-- This is a REFLEXIVE assessment. You must OVERRIDE it based on deep understanding of user context and goals.
 
 ## Purchase Details
 - Product: {product_name}
@@ -570,133 +660,27 @@ Set to null if no new information or if this matches existing patterns."""
 - Website: {website}
 - Time: {system_hour}:00 ({time_risk_label})
 {telemetry_summary}
-
-## STEP 1: DEEP CONTEXT READING (MANDATORY - DO NOT SKIP)
-
-READ THE ENTIRE MEMORY CONTEXT BELOW CAREFULLY. Do not skim. Understand every goal, preference, and constraint.
+## User Memory Context
 
 {context_text if context_snippets else "No memory files found - proceed with caution."}
 
-**CRITICAL QUESTIONS TO ANSWER:**
-1. What are the user's stated goals? (Check Goals.md carefully - look for ALL goals mentioned)
-2. Does this purchase ({product_name}) support, advance, or enable any of those goals?
-   - If YES → This is GOAL-ALIGNED and should SIGNIFICANTLY reduce the impulse score
-   - Example: User wants to run a marathon → Running shoes = GOAL-ALIGNED (large negative adjustment)
-   - Example: User wants to learn guitar → Guitar strings = GOAL-ALIGNED (reduce score)
-3. Does this purchase conflict with any goals?
-   - If YES → Increase the score
-4. What is the budget context? (Check Budget.md)
-5. What are the user's past behaviors? (Check Behavior.md)
+## Analysis Request
 
-## STEP 2: GOAL ALIGNMENT ANALYSIS (HIGHEST PRIORITY)
+Follow your system instructions to:
+1. Check goal alignment (HIGHEST PRIORITY - can justify large score reductions)
+2. Check budget constraints
+3. Consider behavioral patterns and time of day
+4. Calculate final score (start from {p_impulse_fast:.3f}, apply adjustments)
+5. Select intervention based on final score
+6. Generate memory_update ONLY if new pattern emerges (null otherwise)
 
-**IF THIS PURCHASE ALIGNS WITH USER GOALS:**
-- Make a SIGNIFICANT negative adjustment to the score
-- You are NOT limited to small adjustments - if a purchase clearly supports a goal, you can make large reductions
-- Example: Running shoes for marathon goal → Can reduce score by 0.3-0.5 or more depending on context
-- Example: Gym equipment for fitness goal → Large negative adjustment
-- The alignment should be CLEAR and SPECIFIC - cite the goal from memory
-
-**IF THIS PURCHASE CONFLICTS WITH GOALS:**
-- Increase the score appropriately
-- Example: Luxury item when goal is to save money → Increase score
-
-**IF NO CLEAR GOAL ALIGNMENT OR CONFLICT:**
-- Proceed to other factors (budget, behavior, etc.)
-
-## STEP 3: OTHER FACTORS (After goal alignment)
-
-Consider these factors, but goal alignment takes precedence:
-
-1. **BUDGET VIOLATION**: 
-   - Does this exceed stated limits? 
-   - If yes → Positive adjustment (can be significant if major violation)
-   - If within budget → No penalty, may even be a positive signal
-
-2. **PRODUCT CONTEXT**: 
-   - Is this a necessary tool for a goal? (e.g., running shoes for marathon)
-   - Is this a luxury item with no goal alignment?
-   - Adjust based on context, not rigid categories
-
-3. **USER PREFERENCES**: 
-   - Has user shown comfort with this type of purchase? (check Behavior.md)
-   - Adjust based on past patterns
-
-4. **TIME OF DAY**: 
-   - Late night (11 PM - 5 AM) can indicate impulsivity
-   - BUT: If purchase aligns with goals, time of day matters much less
-   - Goal-aligned purchases at night should NOT be heavily penalized
-
-5. **BEHAVIORAL TELEMETRY (cite only when values actually warrant it)**:
-   - ONLY describe as "rapid decision-making" or "very fast time-to-cart" if time_to_cart is under ~30 seconds. If TTC is 1–2+ minutes, do NOT say rapid.
-   - ONLY describe as "high scroll velocity" or "rushed browsing" if peak_scroll_velocity is over ~2000 px/s. Moderate (200–800 px/s) or low values must NOT be cited as impulsivity—say "scroll velocity was moderate" or omit. Note: peak_scroll_velocity can be inflated by a single quick flick; if the user was mostly scrolling slowly, do NOT claim "high scroll velocity."
-   - ONLY describe as "high click rate" if click_rate is over ~0.25 clicks/sec. Lower values are normal browsing.
-   - FORBIDDEN: Do NOT use the phrase "extremely rapid decision-making with high scroll velocity and click rate" (or similar) unless ALL of: time_to_cart < 30s AND peak_scroll_velocity > 2000 px/s AND click_rate > 0.25. If only one or two metrics are elevated, describe that metric only (e.g. "short time to cart") and do NOT imply all three were high.
-   - If telemetry is moderate or low, do NOT claim the purchase "exhibits extremely rapid decision-making with high scroll velocity" — that overstates. Either cite the actual numbers neutrally or say behavior was not strongly impulsive by these metrics.
-   - If goal-aligned, even fast metrics can be justified; do not overstate.
-
-6. **REAL-TIME VITALS (when provided)**:
-   - Elevated respiration (>18-20 RPM) can indicate hyperventilation or stress; cite as a factor when present (e.g. "elevated respiration suggests stress or hyperventilation").
-   - Elevated heart rate (>90 BPM when at rest) can indicate arousal or stress; cite when relevant.
-   - When vitals suggest stress/hyperventilation alongside fast TTC or high scroll velocity, mention this in reasoning (e.g. "rapid decision-making plus elevated respiration suggests an impulsive, stress-driven moment").
-   - If vitals are within normal range, you need not mention them.
-
-## STEP 4: CALCULATE FINAL SCORE
-
-Start with Fast Brain score: {p_impulse_fast:.3f}
-
-Then apply adjustments based on your analysis:
-- Goal alignment can justify LARGE negative adjustments (not limited to small ranges)
-- Make adjustments that make contextual sense
-- Consider all factors together, not in isolation
-
-**EXAMPLES OF GOOD REASONING:**
-- Running shoes ($120) for marathon goal: Start 0.7 → GOAL-ALIGNED (marathon training) → Large negative adjustment (-0.4) → Final: ~0.30 → NONE
-- Gaming console ($500) at 2 AM, no goal alignment: Start 0.5 → No goal support → Late night (+0.1) → High cost concern (+0.2) → Final: ~0.80 → COOLDOWN
-- Spoon ($5) at 2 AM: Start 0.7 → Essential item → Negative adjustment (-0.2) → Final: ~0.50 → MIRROR (or NONE if clearly needed)
-- Fast TTC (0.8s) AND high scroll (>2000 px/s) AND elevated respiration (e.g. 22 RPM): Only then cite "rapid decision-making and elevated respiration suggest a stress-driven, impulsive moment." If scroll was moderate (e.g. 500 px/s), do NOT say "high scroll velocity"—say "short time to cart and elevated respiration" instead.
-
-## STEP 5: SELECT INTERVENTION
-
-Based on your FINAL adjusted score:
-- Score < 0.50: "NONE" (allow purchase)
-- Score 0.50-0.70: "MIRROR" (gentle reflection)
-- Score 0.70-0.85: "COOLDOWN" (wait period)
-- Score > 0.85: "PHRASE" (strong intervention)
-
-## STEP 6: GENERATE MEMORY UPDATE (ONLY IF NEW PATTERN EMERGES)
-
-ONLY generate a memory_update if:
-1. This reveals a NEW pattern not already documented
-2. This refines or updates an existing pattern with new information
-3. This establishes a new spending preference
-
-DO NOT generate a memory_update if:
-- This purchase matches existing documented patterns
-- This is a one-off purchase with no clear pattern
-- The information is already captured in memory files
-
-If you do generate a memory_update, be CONCISE:
-- Behavioral patterns: Only use "rapid decision-making" when BOTH TTC <30s AND (scroll >2000 px/s OR click_rate >0.25). Otherwise: "User shows short time-to-cart for [category]" or "User shows moderate browsing for [category]"
-- Stress/arousal: "User tends to show elevated respiration or heart rate during [type] purchases - possible stress-driven impulse"
-- Spending preferences: "User is comfortable spending $X+ on [category]"
-- Goal-aligned purchases: "User purchased [item] which aligns with goal to [goal]"
-- Time patterns: "User purchases [type] items late at night - appears intentional"
-
-IMPORTANT: Memory files should stay SHORT and FOCUSED. Only record when patterns are established, not every single purchase.
-
-Set to null if no new information or if this matches existing patterns.
-
-## RESPONSE FORMAT (JSON only):
-
-IMPORTANT: Keep "reasoning" SHORT - maximum 1-2 sentences for user display. MUST cite specific goals if goal-aligned.
-
+Respond with JSON only:
 {{
-    "impulse_score": <float - your FINAL adjusted score>,
+    "impulse_score": <float 0-1>,
     "confidence": <float 0-1>,
-    "reasoning": "<1-2 sentences MAX. Be concise. If goal-aligned, mention the goal. Example: 'This aligns with your goal to run a marathon - running shoes are essential for training.' or 'This $500 purchase exceeds your $300 electronics budget.'>",
-    "intervention_action": "<NONE, MIRROR, COOLDOWN, or PHRASE based on thresholds>",
-    "memory_update": "<new preference/pattern learned, or null>"
+    "reasoning": "<1-2 sentences. Cite specific goals/budget if relevant.>",
+    "intervention_action": "<NONE|MIRROR|COOLDOWN|PHRASE>",
+    "memory_update": <string or null>
 }}"""
             
             # Call Vertex AI API
@@ -970,14 +954,28 @@ The refined_content should be the complete file with consolidated observations, 
             # Too many entries, return original
             return current_content
     
+    # Threshold for when to use Gemini refinement vs simple append
+    REFINEMENT_THRESHOLD = 7  # Use Gemini only when file has >7 observations
+
+    def _count_observations(self, content: str) -> int:
+        """Count the number of observations/bullet points in a memory file."""
+        count = 0
+        for line in content.split('\n'):
+            line = line.strip()
+            # Count non-placeholder bullet points
+            if line.startswith('- ') and not any(p in line for p in ['[No ', '[AMOUNT]', '[ ]']):
+                count += 1
+        return count
+
     async def apply_memory_update(self, memory_update: str) -> bool:
         """
         Apply memory update to the appropriate Markdown file and update ChromaDB.
-        Uses intelligent refinement to consolidate observations rather than just appending.
-        
+        Uses intelligent refinement to consolidate observations when file grows large,
+        otherwise uses simple append for efficiency.
+
         Args:
             memory_update: Markdown string with new observations
-            
+
         Returns:
             True if successful, False otherwise
         """
@@ -985,15 +983,15 @@ The refined_content should be the complete file with consolidated observations, 
             if not memory_update or not memory_update.strip():
                 print(f"[Memory] Empty memory update, skipping")
                 return False
-            
+
             # Determine target file
             target_file = self._determine_target_file(memory_update)
             file_path = os.path.join(self.memory_dir, target_file)
-            
+
             if not os.path.exists(file_path):
                 print(f"File not found: {file_path}")
                 return False
-            
+
             # Ensure file is writable
             if not os.access(file_path, os.W_OK):
                 print(f"[Memory] Making file writable: {file_path}")
@@ -1001,33 +999,40 @@ The refined_content should be the complete file with consolidated observations, 
                     os.chmod(file_path, 0o644)
                 except Exception as perm_error:
                     print(f"[Memory] Warning: Could not change file permissions: {perm_error}")
-            
+
             # Create backup
             backup_path = f"{file_path}.backup"
             shutil.copy2(file_path, backup_path)
-            
+
             try:
                 # Read current content
                 with open(file_path, 'r', encoding='utf-8') as f:
                     current_content = f.read()
-                
-                # Try to use Gemini to refine and consolidate the content
+
                 print(f"[Memory] Applying memory update to {target_file}: {memory_update[:100]}...")
-                
-                # First try Gemini refinement
-                try:
-                    refined_content = await self._refine_memory_content(
-                        current_content, 
-                        memory_update, 
-                        target_file
-                    )
-                    
-                    # Verify content changed
-                    if refined_content.strip() == current_content.strip():
-                        print(f"[Memory] Warning: Refined content unchanged, using simple append fallback")
+
+                # Count observations to decide refinement strategy
+                observation_count = self._count_observations(current_content)
+
+                # Only use Gemini refinement if file has grown large (saves API calls)
+                if observation_count > self.REFINEMENT_THRESHOLD:
+                    print(f"[Memory] File has {observation_count} observations (>{self.REFINEMENT_THRESHOLD}), using Gemini refinement")
+                    try:
+                        refined_content = await self._refine_memory_content(
+                            current_content,
+                            memory_update,
+                            target_file
+                        )
+
+                        # Verify content changed
+                        if refined_content.strip() == current_content.strip():
+                            print(f"[Memory] Warning: Refined content unchanged, using simple append fallback")
+                            refined_content = self._simple_append_update(current_content, memory_update, target_file)
+                    except Exception as refine_error:
+                        print(f"[Memory] Refinement failed: {refine_error}, using simple append fallback")
                         refined_content = self._simple_append_update(current_content, memory_update, target_file)
-                except Exception as refine_error:
-                    print(f"[Memory] Refinement failed: {refine_error}, using simple append fallback")
+                else:
+                    print(f"[Memory] File has {observation_count} observations (<={self.REFINEMENT_THRESHOLD}), using simple append")
                     refined_content = self._simple_append_update(current_content, memory_update, target_file)
                 
                 # Update last updated timestamp
@@ -1117,6 +1122,118 @@ The refined_content should be the complete file with consolidated observations, 
             print(f"Error in apply_memory_update: {e}")
             return False
     
+    # Thresholds for consolidation
+    CONSOLIDATION_SIZE_THRESHOLD = 2048  # bytes
+    CONSOLIDATION_OBSERVATION_THRESHOLD = 10
+
+    async def consolidate_memory(self) -> Dict[str, Any]:
+        """
+        Consolidate memory files that have grown too large.
+
+        Checks each memory file and uses Gemini to consolidate/deduplicate
+        entries in files that exceed size or observation thresholds.
+
+        Returns:
+            Dictionary with consolidation results for each file
+        """
+        results = {}
+        memory_files = ['Goals.md', 'Budget.md', 'State.md', 'Behavior.md']
+
+        for filename in memory_files:
+            filepath = os.path.join(self.memory_dir, filename)
+            if not os.path.exists(filepath):
+                results[filename] = {'status': 'skipped', 'reason': 'file not found'}
+                continue
+
+            try:
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    content = f.read()
+
+                file_size = len(content.encode('utf-8'))
+                observation_count = self._count_observations(content)
+
+                # Check if consolidation is needed
+                needs_consolidation = (
+                    file_size > self.CONSOLIDATION_SIZE_THRESHOLD or
+                    observation_count > self.CONSOLIDATION_OBSERVATION_THRESHOLD
+                )
+
+                if not needs_consolidation:
+                    results[filename] = {
+                        'status': 'skipped',
+                        'reason': 'below thresholds',
+                        'size': file_size,
+                        'observations': observation_count
+                    }
+                    continue
+
+                print(f"[Memory] Consolidating {filename} (size={file_size}, observations={observation_count})")
+
+                # Use Gemini to consolidate
+                consolidation_prompt = f"""Consolidate and deduplicate this memory file.
+Remove redundant entries, merge similar observations, and keep only the most important patterns.
+Maximum 5-7 key observations per section. Preserve the markdown structure.
+
+Current content:
+{content}
+
+Return a JSON object with a single "refined_content" field containing the complete consolidated markdown."""
+
+                system_prompt = """You are a memory consolidation system. Your job is to:
+1. Remove duplicate or redundant observations
+2. Merge similar entries into more general patterns
+3. Keep only the most important/recent information
+4. Maintain the markdown structure with proper headers
+5. Keep the file concise - maximum 5-7 key observations per section
+
+Return valid JSON with a "refined_content" field."""
+
+                try:
+                    result = await self._call_gemini_api(consolidation_prompt, system_instruction=system_prompt)
+                    refined_content = result.get('refined_content', '')
+
+                    if refined_content and refined_content.strip():
+                        # Update timestamp
+                        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                        import re
+                        if "## Last Updated" in refined_content:
+                            refined_content = re.sub(
+                                r'## Last Updated\n- .*',
+                                f"## Last Updated\n- {timestamp}",
+                                refined_content
+                            )
+                        else:
+                            refined_content += f"\n\n## Last Updated\n- {timestamp}"
+
+                        # Write consolidated content
+                        with open(filepath, 'w', encoding='utf-8') as f:
+                            f.write(refined_content)
+
+                        new_size = len(refined_content.encode('utf-8'))
+                        new_observations = self._count_observations(refined_content)
+
+                        results[filename] = {
+                            'status': 'consolidated',
+                            'old_size': file_size,
+                            'new_size': new_size,
+                            'old_observations': observation_count,
+                            'new_observations': new_observations,
+                            'reduction': f"{((file_size - new_size) / file_size * 100):.1f}%"
+                        }
+                    else:
+                        results[filename] = {'status': 'error', 'reason': 'empty response from Gemini'}
+
+                except Exception as api_error:
+                    results[filename] = {'status': 'error', 'reason': str(api_error)}
+
+            except Exception as e:
+                results[filename] = {'status': 'error', 'reason': str(e)}
+
+        # Reindex after consolidation
+        await self.reindex_memory()
+
+        return results
+
     async def analyze_purchase(
         self,
         p_impulse_fast: float,
@@ -1124,11 +1241,11 @@ The refined_content should be the complete file with consolidated observations, 
     ) -> Dict[str, Any]:
         """
         Main pipeline: retrieve context, reason, update memory.
-        
+
         Args:
             p_impulse_fast: Fast Brain probability score
             purchase_data: Purchase information (product, cost, website)
-            
+
         Returns:
             Structured response with analysis results including memory_update
         """

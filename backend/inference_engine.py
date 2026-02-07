@@ -23,64 +23,69 @@ class ImpulseInferenceEngine:
     - FULL_BIOMETRIC_WEIGHTS: For future use when Presage SDK provides real biometrics
     """
     
-    # Flag to indicate whether we're using placeholder biometrics
-    # Set to True when Presage SDK is not available or not providing real data
-    USE_PLACEHOLDER_BIOMETRICS = True
-    
-    # Weight profile when biometrics are placeholders (behavior-focused)
-    # Reduced overall so p_impulse stays lower; sum ~0.55
-    BEHAVIOR_ONLY_WEIGHTS = {
-        'heart_rate': 0.02,
-        'respiration_rate': 0.02,
-        'scroll_velocity': 0.14,
-        'emotion_arousal': 0.18,
-        'click_rate': 0.09,
-        'time_to_cart': 0.10
-    }
-    
-    # Weight profile when real biometrics are available
-    FULL_BIOMETRIC_WEIGHTS = {
-        'heart_rate': 0.08,
-        'respiration_rate': 0.08,
-        'scroll_velocity': 0.12,
-        'emotion_arousal': 0.12,
-        'click_rate': 0.08,
-        'time_to_cart': 0.08
-    }
-    
-    # Feature weights for likelihood combination (persage stats weighted very low)
+    # BIOMETRICS_DISABLED: Presage API and HR/RR monitoring removed.
+    # Weights redistributed from heart_rate (0.02) and respiration_rate (0.02) to behavioral metrics.
+    # Camera overlays kept for visual self-reflection (no biometric processing).
+
+    # # Flag to indicate whether we're using placeholder biometrics
+    # # Set to True when Presage SDK is not available or not providing real data
+    # USE_PLACEHOLDER_BIOMETRICS = True
+
+    # # Weight profile when biometrics are placeholders (behavior-focused)
+    # # Reduced overall so p_impulse stays lower; sum ~0.55
+    # BEHAVIOR_ONLY_WEIGHTS = {
+    #     'heart_rate': 0.02,
+    #     'respiration_rate': 0.02,
+    #     'scroll_velocity': 0.14,
+    #     'emotion_arousal': 0.18,
+    #     'click_rate': 0.09,
+    #     'time_to_cart': 0.10
+    # }
+
+    # # Weight profile when real biometrics are available
+    # FULL_BIOMETRIC_WEIGHTS = {
+    #     'heart_rate': 0.08,
+    #     'respiration_rate': 0.08,
+    #     'scroll_velocity': 0.12,
+    #     'emotion_arousal': 0.12,
+    #     'click_rate': 0.08,
+    #     'time_to_cart': 0.08
+    # }
+
+    # BIOMETRICS_DISABLED: Weights redistributed from heart_rate (0.02) and respiration_rate (0.02)
     WEIGHTS = {
-        'heart_rate': 0.02,
-        'respiration_rate': 0.02,
-        'scroll_velocity': 0.14,
-        'emotion_arousal': 0.18,
-        'click_rate': 0.09,
-        'time_to_cart': 0.10
+        # 'heart_rate': 0.0,           # BIOMETRICS_DISABLED
+        # 'respiration_rate': 0.0,     # BIOMETRICS_DISABLED
+        'scroll_velocity': 0.15,       # was 0.14, +0.01
+        'emotion_arousal': 0.19,       # was 0.18, +0.01
+        'click_rate': 0.10,            # was 0.09, +0.01
+        'time_to_cart': 0.11           # was 0.10, +0.01
     }
-    
-    # Dynamic weight selection based on biometric availability
-    @classmethod
-    def get_weights(cls) -> dict:
-        """Get the appropriate weight profile based on biometric availability."""
-        if cls.USE_PLACEHOLDER_BIOMETRICS:
-            return cls.BEHAVIOR_ONLY_WEIGHTS
-        return cls.FULL_BIOMETRIC_WEIGHTS
-    
-    # Legacy WEIGHTS property for backward compatibility
-    @property
-    def WEIGHTS(self) -> dict:
-        """Get weights dynamically based on biometric availability."""
-        return self.get_weights()
+
+    # # Dynamic weight selection based on biometric availability
+    # @classmethod
+    # def get_weights(cls) -> dict:
+    #     """Get the appropriate weight profile based on biometric availability."""
+    #     if cls.USE_PLACEHOLDER_BIOMETRICS:
+    #         return cls.BEHAVIOR_ONLY_WEIGHTS
+    #     return cls.FULL_BIOMETRIC_WEIGHTS
+
+    # # Legacy WEIGHTS property for backward compatibility
+    # @property
+    # def WEIGHTS(self) -> dict:
+    #     """Get weights dynamically based on biometric availability."""
+    #     return self.get_weights()
     
     # Sigmoid steepness: lower = less trigger-happy (need higher z to get high likelihood)
     SIGMOID_K = 1.0
     
     # Intervention level thresholds
+    # Standardized naming: NONE/MIRROR/COOLDOWN/PHRASE (matches extension expectations)
     INTERVENTION_THRESHOLDS = {
         'NONE': 0.3,
-        'NUDGE': 0.6,
-        'CHALLENGE': 0.8,
-        'LOCKOUT': 1.0
+        'MIRROR': 0.6,
+        'COOLDOWN': 0.85,
+        'PHRASE': 1.0
     }
     
     # Website risk factors
@@ -134,8 +139,10 @@ class ImpulseInferenceEngine:
         self.prior_p = prior_p
         
         # Validate baseline data structure (time_to_cart optional; when present used for TTC z-score)
-        required_keys = ['heart_rate', 'respiration_rate', 'scroll_velocity',
-                        'click_rate', 'time_on_site']
+        # BIOMETRICS_DISABLED: heart_rate and respiration_rate no longer required
+        required_keys = ['scroll_velocity', 'click_rate', 'time_on_site']
+        # required_keys = ['heart_rate', 'respiration_rate', 'scroll_velocity',
+        #                 'click_rate', 'time_on_site']
         for key in required_keys:
             if key not in baseline_data:
                 raise ValueError(f"Missing baseline data for: {key}")
@@ -268,35 +275,38 @@ class ImpulseInferenceEngine:
             Probability of impulse state [0.0, 1.0]
         """
         # Extract values with defaults
-        hr = current_data.get('heart_rate', 0)
-        rr = current_data.get('respiration_rate', 0)
+        # BIOMETRICS_DISABLED: HR and RR no longer used
+        # hr = current_data.get('heart_rate', 0)
+        # rr = current_data.get('respiration_rate', 0)
         arousal = current_data.get('emotion_arousal', 0.0)
         click_rate = current_data.get('click_rate', 0.0)
         scroll_velocity = current_data.get('scroll_velocity_peak', 0.0)
         time_to_cart = current_data.get('time_to_cart', float('inf'))
         hour = current_data.get('system_time', 12)
         website_name = current_data.get('website_name', '')
-        
-        # Calculate Z-scores for HR, RR, Scroll Velocity
-        hr_z = self._calculate_z_score(
-            hr,
-            self.baseline_data['heart_rate']['mean'],
-            self.baseline_data['heart_rate']['std']
-        )
-        rr_z = self._calculate_z_score(
-            rr,
-            self.baseline_data['respiration_rate']['mean'],
-            self.baseline_data['respiration_rate']['std']
-        )
+
+        # BIOMETRICS_DISABLED: HR and RR z-scores no longer calculated
+        # # Calculate Z-scores for HR, RR, Scroll Velocity
+        # hr_z = self._calculate_z_score(
+        #     hr,
+        #     self.baseline_data['heart_rate']['mean'],
+        #     self.baseline_data['heart_rate']['std']
+        # )
+        # rr_z = self._calculate_z_score(
+        #     rr,
+        #     self.baseline_data['respiration_rate']['mean'],
+        #     self.baseline_data['respiration_rate']['std']
+        # )
         scroll_z = self._calculate_z_score(
             scroll_velocity,
             self.baseline_data['scroll_velocity']['mean'],
             self.baseline_data['scroll_velocity']['std']
         )
-        
+
         # Map Z-scores to likelihoods using sigmoid
-        hr_likelihood = self._sigmoid_likelihood(hr_z)
-        rr_likelihood = self._sigmoid_likelihood(rr_z)
+        # BIOMETRICS_DISABLED: HR and RR likelihoods no longer calculated
+        # hr_likelihood = self._sigmoid_likelihood(hr_z)
+        # rr_likelihood = self._sigmoid_likelihood(rr_z)
         scroll_likelihood = self._sigmoid_likelihood(scroll_z)
         
         # Emotion arousal is already in [0, 1], use directly
@@ -314,9 +324,10 @@ class ImpulseInferenceEngine:
         ttc_likelihood = self._calculate_ttc_likelihood(time_to_cart)
         
         # Weighted combination of likelihoods
+        # BIOMETRICS_DISABLED: HR and RR removed from weighted combination
         weighted_p = (
-            self.WEIGHTS['heart_rate'] * hr_likelihood +
-            self.WEIGHTS['respiration_rate'] * rr_likelihood +
+            # self.WEIGHTS['heart_rate'] * hr_likelihood +
+            # self.WEIGHTS['respiration_rate'] * rr_likelihood +
             self.WEIGHTS['scroll_velocity'] * scroll_likelihood +
             self.WEIGHTS['emotion_arousal'] * arousal_likelihood +
             self.WEIGHTS['click_rate'] * click_likelihood +
@@ -349,21 +360,21 @@ class ImpulseInferenceEngine:
     def get_intervention_level(self, p_score: float) -> str:
         """
         Determine intervention level based on probability score.
-        
+
         Args:
             p_score: Probability of impulse state [0.0, 1.0]
-            
+
         Returns:
-            Intervention level: "NONE", "NUDGE", "CHALLENGE", or "LOCKOUT"
+            Intervention level: "NONE", "MIRROR", "COOLDOWN", or "PHRASE"
         """
         if p_score < self.INTERVENTION_THRESHOLDS['NONE']:
             return "NONE"
-        elif p_score < self.INTERVENTION_THRESHOLDS['NUDGE']:
-            return "NUDGE"
-        elif p_score < self.INTERVENTION_THRESHOLDS['CHALLENGE']:
-            return "CHALLENGE"
+        elif p_score < self.INTERVENTION_THRESHOLDS['MIRROR']:
+            return "MIRROR"
+        elif p_score < self.INTERVENTION_THRESHOLDS['COOLDOWN']:
+            return "COOLDOWN"
         else:
-            return "LOCKOUT"
+            return "PHRASE"
     
     def validate_logic(self, current_data: Dict[str, Any], p_score: float) -> str:
         """
@@ -437,24 +448,26 @@ class ImpulseInferenceEngine:
         """
         # Calculate probability
         p_impulse = self.calculate_p_impulse(current_data)
-        
+
         # Calculate individual components to find dominant trigger
-        hr = current_data.get('heart_rate', 0)
-        rr = current_data.get('respiration_rate', 0)
+        # BIOMETRICS_DISABLED: HR and RR no longer used
+        # hr = current_data.get('heart_rate', 0)
+        # rr = current_data.get('respiration_rate', 0)
         arousal = current_data.get('emotion_arousal', 0.0)
         click_rate = current_data.get('click_rate', 0.0)
         scroll_velocity = current_data.get('scroll_velocity_peak', 0.0)
         time_to_cart = current_data.get('time_to_cart', float('inf'))
-        
+
         # Calculate Z-scores
-        hr_z = self._calculate_z_score(
-            hr, self.baseline_data['heart_rate']['mean'],
-            self.baseline_data['heart_rate']['std']
-        )
-        rr_z = self._calculate_z_score(
-            rr, self.baseline_data['respiration_rate']['mean'],
-            self.baseline_data['respiration_rate']['std']
-        )
+        # BIOMETRICS_DISABLED: HR and RR z-scores no longer calculated
+        # hr_z = self._calculate_z_score(
+        #     hr, self.baseline_data['heart_rate']['mean'],
+        #     self.baseline_data['heart_rate']['std']
+        # )
+        # rr_z = self._calculate_z_score(
+        #     rr, self.baseline_data['respiration_rate']['mean'],
+        #     self.baseline_data['respiration_rate']['std']
+        # )
         scroll_z = self._calculate_z_score(
             scroll_velocity, self.baseline_data['scroll_velocity']['mean'],
             self.baseline_data['scroll_velocity']['std']
@@ -463,10 +476,11 @@ class ImpulseInferenceEngine:
             click_rate, self.baseline_data['click_rate']['mean'],
             self.baseline_data['click_rate']['std']
         )
-        
+
         # Calculate likelihoods
-        hr_likelihood = self._sigmoid_likelihood(hr_z)
-        rr_likelihood = self._sigmoid_likelihood(rr_z)
+        # BIOMETRICS_DISABLED: HR and RR likelihoods no longer calculated
+        # hr_likelihood = self._sigmoid_likelihood(hr_z)
+        # rr_likelihood = self._sigmoid_likelihood(rr_z)
         scroll_likelihood = self._sigmoid_likelihood(scroll_z)
         arousal_likelihood = arousal
         click_likelihood = self._sigmoid_likelihood(click_z)
@@ -480,9 +494,10 @@ class ImpulseInferenceEngine:
             ttc_likelihood = self._calculate_ttc_likelihood(time_to_cart)
         
         # Calculate weighted contributions
+        # BIOMETRICS_DISABLED: HR and RR removed from contributions
         contributions = {
-            'heart_rate': self.WEIGHTS['heart_rate'] * hr_likelihood,
-            'respiration_rate': self.WEIGHTS['respiration_rate'] * rr_likelihood,
+            # 'heart_rate': self.WEIGHTS['heart_rate'] * hr_likelihood,
+            # 'respiration_rate': self.WEIGHTS['respiration_rate'] * rr_likelihood,
             'scroll_velocity': self.WEIGHTS['scroll_velocity'] * scroll_likelihood,
             'emotion_arousal': self.WEIGHTS['emotion_arousal'] * arousal_likelihood,
             'click_rate': self.WEIGHTS['click_rate'] * click_likelihood,
@@ -505,16 +520,17 @@ class ImpulseInferenceEngine:
             'p_impulse': float(p_impulse),
             'dominant_trigger': dominant_trigger,
             'logic_summary': {
+                # BIOMETRICS_DISABLED: HR and RR removed from z_scores and likelihoods
                 'z_scores': {
-                    'heart_rate': float(hr_z),
-                    'respiration_rate': float(rr_z),
+                    # 'heart_rate': float(hr_z),
+                    # 'respiration_rate': float(rr_z),
                     'scroll_velocity': float(scroll_z),
                     'click_rate': float(click_z),
                     **({'time_to_cart': float(ttc_z)} if ttc_z is not None else {})
                 },
                 'likelihoods': {
-                    'heart_rate': float(hr_likelihood),
-                    'respiration_rate': float(rr_likelihood),
+                    # 'heart_rate': float(hr_likelihood),
+                    # 'respiration_rate': float(rr_likelihood),
                     'scroll_velocity': float(scroll_likelihood),
                     'emotion_arousal': float(arousal_likelihood),
                     'click_rate': float(click_likelihood),

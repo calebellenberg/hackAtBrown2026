@@ -1,0 +1,4 @@
+# file: /Users/sanildesai/Documents/CodeProjects/hackAtBrown2026/backend/conftest.py
+# hypothesis_version: 6.151.5
+
+['.json', '123456789', 'Behavior.md', 'Budget.md', 'Goals.md', 'State.md', 'auth_uri', 'client_email', 'client_id', 'client_x509_cert_url', 'mock_access_token', 'private_key', 'private_key_id', 'project_id', 'service_account', 'test-key-id', 'test-project', 'token_uri', 'type', 'w']

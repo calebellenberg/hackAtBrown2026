@@ -309,39 +309,40 @@ if (resetMemoryBtn) {
 // Initialize on load
 initPreferences();
 
+// BIOMETRICS_DISABLED: Persage vitals polling commented out
 // ==================== Persage vitals (from broker) ====================
-const VITALS_URL = 'http://localhost:8766/vitals';
-const POLL_MS = 1500;
+// const VITALS_URL = 'http://localhost:8766/vitals';
+// const POLL_MS = 1500;
 
-const popupHeart = document.getElementById('popup-heart');
-const popupBreath = document.getElementById('popup-breath');
-const vitalsStatus = document.getElementById('vitals-status');
+// const popupHeart = document.getElementById('popup-heart');
+// const popupBreath = document.getElementById('popup-breath');
+// const vitalsStatus = document.getElementById('vitals-status');
 
-var vitalsPollTimer = null;
-function pollVitals() {
-  if (!popupHeart || !popupBreath || !vitalsStatus) return;
-  fetch(VITALS_URL)
-    .then(function (r) { return r.json(); })
-    .then(function (data) {
-      var hr = data.heart_rate;
-      var br = data.respiration_rate;
-      popupHeart.textContent = (hr != null && hr > 0) ? Math.round(hr) : '--';
-      popupBreath.textContent = (br != null && br > 0) ? Math.round(br) : '--';
-      vitalsStatus.textContent = 'Vitals: live';
-      vitalsStatus.className = 'vitals-status connected';
-    })
-    .catch(function () {
-      popupHeart.textContent = '--';
-      popupBreath.textContent = '--';
-      vitalsStatus.textContent = 'Vitals: start broker (port 8766) for live data';
-      vitalsStatus.className = 'vitals-status disconnected';
-    });
-}
+// var vitalsPollTimer = null;
+// function pollVitals() {
+//   if (!popupHeart || !popupBreath || !vitalsStatus) return;
+//   fetch(VITALS_URL)
+//     .then(function (r) { return r.json(); })
+//     .then(function (data) {
+//       var hr = data.heart_rate;
+//       var br = data.respiration_rate;
+//       popupHeart.textContent = (hr != null && hr > 0) ? Math.round(hr) : '--';
+//       popupBreath.textContent = (br != null && br > 0) ? Math.round(br) : '--';
+//       vitalsStatus.textContent = 'Vitals: live';
+//       vitalsStatus.className = 'vitals-status connected';
+//     })
+//     .catch(function () {
+//       popupHeart.textContent = '--';
+//       popupBreath.textContent = '--';
+//       vitalsStatus.textContent = 'Vitals: start broker (port 8766) for live data';
+//       vitalsStatus.className = 'vitals-status disconnected';
+//     });
+// }
 
-pollVitals();
-vitalsPollTimer = setInterval(pollVitals, POLL_MS);
+// pollVitals();
+// vitalsPollTimer = setInterval(pollVitals, POLL_MS);
 
-document.addEventListener('visibilitychange', function () {
-  if (document.hidden && vitalsPollTimer) clearInterval(vitalsPollTimer);
-});
+// document.addEventListener('visibilitychange', function () {
+//   if (document.hidden && vitalsPollTimer) clearInterval(vitalsPollTimer);
+// });
 

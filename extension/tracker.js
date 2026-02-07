@@ -369,21 +369,26 @@
         function isAddToCartElement(el) {
             // FIX: Ensure it is an Element node (nodeType 1) to avoid getAttribute errors on text nodes
             if (!el || el.nodeType !== 1) return false;
-            
+
             const tag = el.tagName.toLowerCase();
-            const text = (el.innerText || el.value || '').trim().toLowerCase();
+            const text = (el.innerText || el.value || el.getAttribute('aria-label') || '').trim().toLowerCase();
             const id = el.getAttribute('id') || '';
             const cls = el.getAttribute('class') || '';
             const attrStr = (id + ' ' + cls).toLowerCase();
 
-            const addPhrases = ['add to cart', 'add to bag', 'add to basket', 'add to trolley', 'buy now', 'add to order'];
-            
+            const addPhrases = [
+                'add to cart', 'add to bag', 'add to basket', 'add to trolley', 'buy now',
+                'buy it now', 'place order', 'place your order', 'complete purchase',
+                'proceed to checkout', 'checkout now', 'order now', 'purchase now',
+                'subscribe & save', 'preorder', 'pre-order', 'reserve now', 'add to order'
+            ];
+
             if (addPhrases.some(p => text.includes(p))) return true;
-            if (/(add_to_cart|addtocart|add-to-cart|btn-add|add-to-basket|add-to-bag)/i.test(attrStr)) return true;
-            
+            if (/(add_to_cart|addtocart|add-to-cart|btn-add|add-to-basket|add-to-bag|buy-now|buynow|buy_now|checkout|place-order|place_order)/i.test(attrStr)) return true;
+
             // Input buttons
             if (tag === 'input' && (el.type === 'submit' || el.type === 'button') && addPhrases.some(p => (el.value || '').toLowerCase().includes(p))) return true;
-            
+
             return false;
         }
 
@@ -587,7 +592,7 @@
                 window.dispatchEvent(new CustomEvent('pipeline-analysis-result', {
                     detail: {
                         p_impulse_fast: 0.5,
-                        fast_brain_intervention: 'NUDGE',
+                        fast_brain_intervention: 'MIRROR',
                         fast_brain_dominant_trigger: 'error',
                         impulse_score: 0.5,
                         confidence: 0.3,
