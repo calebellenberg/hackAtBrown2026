@@ -1,5 +1,6 @@
-<div align="center">
 # Stopify
+
+<div align="center">
 
 **AI-Powered Impulse Purchase Prevention System**
 
